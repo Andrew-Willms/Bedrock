@@ -1,14 +1,12 @@
+mod state;
+mod star_render_loop;
+
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
 
 
-struct State {
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    surface: wgpu::Surface<'static>,
-    config: wgpu::SurfaceConfiguration,
-}
+
 
 // For debug build:
 // wasm-pack build --target web --dev -- --features debug-logging
@@ -83,80 +81,50 @@ pub async fn main() -> Result<(), JsValue> {
 
     surface.configure(&device, &config);
 
-    let state = State {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("Triangle Shader"),
+        source: wgpu::ShaderSource::Wgsl(
+            include_str!("shaders/shader.wgsl").into()
+        ),
+    });
+
+    let render_pipeline = device.create_render_pipeline(
+        &wgpu::RenderPipelineDescriptor {
+            label: Some("Triangle Render Pipeline"),
+            layout: None,
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("main_vertex_shader"),
+                buffers: &[],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("main_fragment_shader"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview_mask: None,
+            cache: None,
+        },
+    );
+
+    let state = state::State {
         device,
         queue,
         surface,
         config,
+        render_pipeline
     };
 
-    render(&state)?;
-
-    Ok(())
-}
-
-fn render(state: &State) -> Result<(), JsValue> {
-
-    let output = match state.surface.get_current_texture() {
-        wgpu::CurrentSurfaceTexture::Success(texture) => texture,
-
-        wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
-
-        wgpu::CurrentSurfaceTexture::Timeout => {
-            return Err(JsValue::from_str("Surface texture acquisition timed out"));
-        }
-
-        wgpu::CurrentSurfaceTexture::Occluded => {
-            return Err(JsValue::from_str("Surface is occluded"));
-        }
-
-        wgpu::CurrentSurfaceTexture::Outdated => {
-            return Err(JsValue::from_str("Surface is outdated"));
-        }
-
-        wgpu::CurrentSurfaceTexture::Lost => {
-            return Err(JsValue::from_str("Surface was lost"));
-        }
-
-        wgpu::CurrentSurfaceTexture::Validation => {
-            return Err(JsValue::from_str("Surface texture acquisition failed validation"));
-        }
-    };
-
-    let view = output
-        .texture
-        .create_view(&wgpu::TextureViewDescriptor::default());
-
-    let mut encoder = state
-        .device
-        .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-
-    {
-        let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.05,
-                        g: 0.05,
-                        b: 0.05,
-                        a: 1.0,
-                    }),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-    }
-
-    state.queue.submit(Some(encoder.finish()));
-    state.queue.present(output);
+    star_render_loop::start_render_loop(state);
 
     Ok(())
 }
