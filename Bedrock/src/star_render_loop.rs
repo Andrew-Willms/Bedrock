@@ -10,23 +10,19 @@ use crate::state;
 pub(crate) fn start_render_loop(state: state::State) {
 	
 	let state = Rc::new(RefCell::new(state));
-	let window = web_sys::window().unwrap();
 	let callback: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
 	
-	let callback_clone = callback.clone();
 	let state_clone = state.clone();
-	let window_clone = window.clone();
+	let callback_clone = callback.clone();
 	
 	*callback_clone.borrow_mut() = Some(Closure::wrap(Box::new(move || {
 		{
-			let mut state = state_clone.borrow_mut();
-			
-			if let Err(error) = state.render() {
+			if let Err(error) = state_clone.borrow_mut().render() {
 				web_sys::console::error_1(&error);
 			}
 		}
 		
-		window_clone
+		state_clone.borrow().window
 			.request_animation_frame(
 				callback.borrow().as_ref().unwrap().as_ref().unchecked_ref()
 			)
@@ -34,15 +30,9 @@ pub(crate) fn start_render_loop(state: state::State) {
 		
 	}) as Box<dyn FnMut()>));
 	
-	window
+	state.borrow().window
 		.request_animation_frame(
-			callback_clone
-				.borrow()
-				.as_ref()
-				.unwrap()
-				.as_ref()
-				.unchecked_ref(),
+			callback_clone.borrow().as_ref().unwrap().as_ref().unchecked_ref(),
 		)
 		.unwrap();
-	
 }
