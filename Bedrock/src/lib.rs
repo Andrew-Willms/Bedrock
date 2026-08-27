@@ -6,8 +6,6 @@ use web_sys::HtmlCanvasElement;
 
 
 
-
-
 // For debug build:
 // wasm-pack build --target web --dev -- --features debug-logging
 // python3 -m http.server 8000
@@ -33,7 +31,13 @@ pub async fn main() -> Result<(), JsValue> {
         .get_element_by_id("canvas")
         .expect("An element with id 'canvas' does not exist.")
         .dyn_into::<HtmlCanvasElement>()?;
-
+    
+    let canvas_bounding_rectangle = canvas.get_bounding_client_rect();
+    let device_pixel_ratio = window.device_pixel_ratio();
+    
+    let width = (canvas_bounding_rectangle.width() * device_pixel_ratio).round() as u32;
+    let height = (canvas_bounding_rectangle.height() * device_pixel_ratio).round() as u32;
+    
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::BROWSER_WEBGPU,
         ..wgpu::InstanceDescriptor::new_without_display_handle()
@@ -71,8 +75,8 @@ pub async fn main() -> Result<(), JsValue> {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
         format,
         color_space: wgpu::SurfaceColorSpace::Auto,
-        width: canvas.width(),
-        height: canvas.height(),
+        width,
+        height,
         present_mode: wgpu::PresentMode::AutoVsync,
         alpha_mode: capabilities.alpha_modes[0],
         view_formats: vec![],
@@ -121,7 +125,12 @@ pub async fn main() -> Result<(), JsValue> {
         queue,
         surface,
         config,
-        render_pipeline
+        render_pipeline,
+        window,
+        canvas,
+        last_device_pixel_ratio: device_pixel_ratio,
+        last_canvas_css_width: canvas_bounding_rectangle.width(),
+        last_canvas_css_height: canvas_bounding_rectangle.height()
     };
 
     star_render_loop::start_render_loop(state);

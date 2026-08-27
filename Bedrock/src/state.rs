@@ -1,4 +1,5 @@
 use wasm_bindgen::JsValue;
+use web_sys::{console, HtmlCanvasElement, Window};
 
 
 
@@ -8,6 +9,13 @@ pub(crate) struct State {
 	pub(crate) surface: wgpu::Surface<'static>,
 	pub(crate) config: wgpu::SurfaceConfiguration,
 	pub(crate) render_pipeline: wgpu::RenderPipeline,
+	
+	pub(crate) window: Window,
+	pub(crate) canvas: HtmlCanvasElement,
+	
+	pub(crate) last_device_pixel_ratio: f64,
+	pub(crate) last_canvas_css_width: f64,
+	pub(crate) last_canvas_css_height: f64,
 }
 
 
@@ -15,6 +23,9 @@ pub(crate) struct State {
 impl State {
 	
 	pub(crate) fn render(&mut self) -> Result<(), JsValue> {
+		
+		self.resize_if_necessary();
+		
 		let output = match self.surface.get_current_texture() {
 			wgpu::CurrentSurfaceTexture::Success(texture) => texture,
 			
@@ -84,6 +95,30 @@ impl State {
 		self.queue.present(output);
 		
 		Ok(())
+	}
+	
+	pub(crate) fn resize_if_necessary(&mut self) {
+		
+		let bounding_rectangle = self.canvas.get_bounding_client_rect();
+		let device_pixel_ratio = self.window.device_pixel_ratio();
+		
+		if (device_pixel_ratio == self.last_device_pixel_ratio) &&
+			(bounding_rectangle.width() == self.last_canvas_css_width) &&
+			(bounding_rectangle.height() == self.last_canvas_css_height) {
+			
+			return;
+		}
+		
+		self.last_device_pixel_ratio = device_pixel_ratio;
+		self.last_canvas_css_width = bounding_rectangle.width();
+		self.last_canvas_css_height = bounding_rectangle.height();
+		
+		self.config.width = (bounding_rectangle.width() * device_pixel_ratio).round() as u32;
+		self.config.height = (bounding_rectangle.height() * device_pixel_ratio).round() as u32;
+		
+		self.surface.configure(&self.device, &self.config);
+		
+		console::log_1(&"resize".into());
 	}
 	
 }
