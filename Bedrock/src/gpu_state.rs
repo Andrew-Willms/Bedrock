@@ -7,8 +7,8 @@ use crate::web_state::WebState;
 pub(crate) struct GpuState {
 	pub(crate) device: wgpu::Device,
 	pub(crate) queue: wgpu::Queue,
-	pub(crate) surface: wgpu::Surface<'static>,
-	pub(crate) config: wgpu::SurfaceConfiguration,
+	pub(crate) surface: Surface<'static>,
+	pub(crate) config: SurfaceConfiguration,
 }
 
 

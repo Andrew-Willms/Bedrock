@@ -1,5 +1,5 @@
 use wasm_bindgen::JsValue;
-use web_sys::{console, HtmlCanvasElement, Window};
+use web_sys::{console};
 use crate::gpu_state::GpuState;
 use crate::simulation_parameters::SimulationParameters;
 use crate::web_state::WebState;
@@ -24,43 +24,6 @@ pub(crate) struct State {
 
 
 impl State {
-	
-	fn compute(&mut self, delta_time: f32) {
-		
-		let parameters = SimulationParameters {
-			delta_time,
-			_padding: [0.0; 3],
-		};
-		
-		self.gpu_state.queue.write_buffer(
-			&self.simulation_parameter_buffer,
-			0,
-			bytemuck::bytes_of(&parameters),
-		);
-		
-		let mut encoder = self.gpu_state.device.create_command_encoder(
-			&wgpu::CommandEncoderDescriptor {
-				label: Some("Compute Encoder"),
-			},
-		);
-		
-		{
-			let mut compute_pass = encoder.begin_compute_pass(
-				&wgpu::ComputePassDescriptor {
-					label: Some("Particle Compute Pass"),
-					timestamp_writes: None,
-				},
-			);
-			
-			compute_pass.set_pipeline(&self.compute_pipeline);
-			compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
-			
-			let workgroup_count = self.particle_count.div_ceil(64);
-			compute_pass.dispatch_workgroups(workgroup_count,1,1);
-		}
-		
-		self.gpu_state.queue.submit(Some(encoder.finish()));
-	}
 	
 	pub(crate) fn render(&mut self) -> Result<(), JsValue> {
 		
@@ -94,33 +57,23 @@ impl State {
 			}
 		};
 		
-		let view = output
-			.texture
-			.create_view(&wgpu::TextureViewDescriptor::default());
-		
-		
+		let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 		
 		let parameters = SimulationParameters {
 			delta_time: 1.0 / 60.0,
 			_padding: [0.0; 3],
 		};
 		
-		self.gpu_state.queue.write_buffer(
-			&self.simulation_parameter_buffer,
-			0,
-			bytemuck::bytes_of(&parameters),
-		);
-		
-		
+		self.gpu_state.queue.write_buffer(&self.simulation_parameter_buffer, 0, bytemuck::bytes_of(&parameters));
 		
 		let mut encoder = self.gpu_state.device.create_command_encoder(
 			&wgpu::CommandEncoderDescriptor {
-				label: Some("Render Encoder"),
+				label: Some("Command Encoder"),
 			}
 		);
 		
-		
-		
+		// This scope is to ensure the mutable borrow of encoder (using when assigning to compute_pass)
+		// is returned before it needs to be used for render_pass.
 		{
 			let mut compute_pass = encoder.begin_compute_pass(
 				&wgpu::ComputePassDescriptor {
@@ -136,8 +89,8 @@ impl State {
 			compute_pass.dispatch_workgroups(workgroup_count,1,1);
 		}
 		
-		
-		
+		// This scope is to ensure the mutable borrow of encoder (using when assigning to render_pass)
+		// is returned before the encoder is finished and submitted to the queue.
 		{
 			let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
 				label: Some("Render"),
@@ -172,7 +125,7 @@ impl State {
 		return Ok(());
 	}
 	
-	pub(crate) fn resize_if_necessary(&mut self) {
+	fn resize_if_necessary(&mut self) {
 		
 		let bounding_rectangle = self.web_state.canvas.get_bounding_client_rect();
 		let device_pixel_ratio = self.web_state.window.device_pixel_ratio();
@@ -193,7 +146,7 @@ impl State {
 		
 		self.gpu_state.surface.configure(&self.gpu_state.device, &self.gpu_state.config);
 		
-		console::log_1(&"resize".into());
+		console::log_1(&"resizing".into());
 	}
 	
 }
