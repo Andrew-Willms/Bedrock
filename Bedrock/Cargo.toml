@@ -31,7 +31,3 @@ debug-logging = [
     "dep:console_error_panic_hook",
     "dep:console_log",
 ]
-
-#[lints.clippy]
-#implicit_return = "deny"
-#needless_return = "allow"

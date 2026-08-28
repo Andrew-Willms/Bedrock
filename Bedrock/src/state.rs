@@ -1,36 +1,72 @@
 use wasm_bindgen::JsValue;
 use web_sys::{console, HtmlCanvasElement, Window};
+use crate::gpu_state::GpuState;
+use crate::simulation_parameters::SimulationParameters;
+use crate::web_state::WebState;
 
 
 
 pub(crate) struct State {
 	
-	pub(crate) window: Window,
-	pub(crate) canvas: HtmlCanvasElement,
+	pub(crate) web_state: WebState,
+	pub(crate) gpu_state: GpuState,
 	
-	pub(crate) last_device_pixel_ratio: f64,
-	pub(crate) last_canvas_css_width: f64,
-	pub(crate) last_canvas_css_height: f64,
+	pub(crate) compute_pipeline: wgpu::ComputePipeline,
+	pub(crate) compute_bind_group: wgpu::BindGroup,
 	
-	pub(crate) device: wgpu::Device,
-	pub(crate) queue: wgpu::Queue,
-	pub(crate) surface: wgpu::Surface<'static>,
-	pub(crate) config: wgpu::SurfaceConfiguration,
 	pub(crate) render_pipeline: wgpu::RenderPipeline,
 	
 	pub(crate) particle_count: u32,
-	pub(crate) particle_buffer: wgpu::Buffer
+	pub(crate) simulation_parameter_buffer: wgpu::Buffer,
+	pub(crate) particle_buffer: wgpu::Buffer,
 }
 
 
 
 impl State {
 	
+	fn compute(&mut self, delta_time: f32) {
+		
+		let parameters = SimulationParameters {
+			delta_time,
+			_padding: [0.0; 3],
+		};
+		
+		self.gpu_state.queue.write_buffer(
+			&self.simulation_parameter_buffer,
+			0,
+			bytemuck::bytes_of(&parameters),
+		);
+		
+		let mut encoder = self.gpu_state.device.create_command_encoder(
+			&wgpu::CommandEncoderDescriptor {
+				label: Some("Compute Encoder"),
+			},
+		);
+		
+		{
+			let mut compute_pass = encoder.begin_compute_pass(
+				&wgpu::ComputePassDescriptor {
+					label: Some("Particle Compute Pass"),
+					timestamp_writes: None,
+				},
+			);
+			
+			compute_pass.set_pipeline(&self.compute_pipeline);
+			compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
+			
+			let workgroup_count = self.particle_count.div_ceil(64);
+			compute_pass.dispatch_workgroups(workgroup_count,1,1);
+		}
+		
+		self.gpu_state.queue.submit(Some(encoder.finish()));
+	}
+	
 	pub(crate) fn render(&mut self) -> Result<(), JsValue> {
 		
 		self.resize_if_necessary();
 		
-		let output = match self.surface.get_current_texture() {
+		let output = match self.gpu_state.surface.get_current_texture() {
 			wgpu::CurrentSurfaceTexture::Success(texture) => texture,
 			
 			wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
@@ -62,11 +98,45 @@ impl State {
 			.texture
 			.create_view(&wgpu::TextureViewDescriptor::default());
 		
-		let mut encoder = self
-			.device
-			.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+		
+		
+		let parameters = SimulationParameters {
+			delta_time: 1.0 / 60.0,
+			_padding: [0.0; 3],
+		};
+		
+		self.gpu_state.queue.write_buffer(
+			&self.simulation_parameter_buffer,
+			0,
+			bytemuck::bytes_of(&parameters),
+		);
+		
+		
+		
+		let mut encoder = self.gpu_state.device.create_command_encoder(
+			&wgpu::CommandEncoderDescriptor {
 				label: Some("Render Encoder"),
-			});
+			}
+		);
+		
+		
+		
+		{
+			let mut compute_pass = encoder.begin_compute_pass(
+				&wgpu::ComputePassDescriptor {
+					label: Some("Particle Compute Pass"),
+					timestamp_writes: None,
+				},
+			);
+			
+			compute_pass.set_pipeline(&self.compute_pipeline);
+			compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
+			
+			let workgroup_count = self.particle_count.div_ceil(64);
+			compute_pass.dispatch_workgroups(workgroup_count,1,1);
+		}
+		
+		
 		
 		{
 			let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -77,9 +147,9 @@ impl State {
 					resolve_target: None,
 					ops: wgpu::Operations {
 						load: wgpu::LoadOp::Clear(wgpu::Color {
-							r: 0.5,
-							g: 0.5,
-							b: 0.5,
+							r: 0.25,
+							g: 0.25,
+							b: 0.25,
 							a: 1.0,
 						}),
 						store: wgpu::StoreOp::Store,
@@ -96,32 +166,32 @@ impl State {
 			render_pass.draw(0..self.particle_count, 0..1);
 		}
 		
-		self.queue.submit(Some(encoder.finish()));
-		self.queue.present(output);
+		self.gpu_state.queue.submit(Some(encoder.finish()));
+		self.gpu_state.queue.present(output);
 		
 		return Ok(());
 	}
 	
 	pub(crate) fn resize_if_necessary(&mut self) {
 		
-		let bounding_rectangle = self.canvas.get_bounding_client_rect();
-		let device_pixel_ratio = self.window.device_pixel_ratio();
+		let bounding_rectangle = self.web_state.canvas.get_bounding_client_rect();
+		let device_pixel_ratio = self.web_state.window.device_pixel_ratio();
 		
-		if (device_pixel_ratio == self.last_device_pixel_ratio) &&
-			(bounding_rectangle.width() == self.last_canvas_css_width) &&
-			(bounding_rectangle.height() == self.last_canvas_css_height) {
+		if (device_pixel_ratio == self.web_state.last_device_pixel_ratio) &&
+			(bounding_rectangle.width() == self.web_state.last_canvas_css_width) &&
+			(bounding_rectangle.height() == self.web_state.last_canvas_css_height) {
 			
 			return;
 		}
 		
-		self.last_device_pixel_ratio = device_pixel_ratio;
-		self.last_canvas_css_width = bounding_rectangle.width();
-		self.last_canvas_css_height = bounding_rectangle.height();
+		self.web_state.last_device_pixel_ratio = device_pixel_ratio;
+		self.web_state.last_canvas_css_width = bounding_rectangle.width();
+		self.web_state.last_canvas_css_height = bounding_rectangle.height();
 		
-		self.config.width = (bounding_rectangle.width() * device_pixel_ratio).round() as u32;
-		self.config.height = (bounding_rectangle.height() * device_pixel_ratio).round() as u32;
+		self.gpu_state.config.width = (bounding_rectangle.width() * device_pixel_ratio).round() as u32;
+		self.gpu_state.config.height = (bounding_rectangle.height() * device_pixel_ratio).round() as u32;
 		
-		self.surface.configure(&self.device, &self.config);
+		self.gpu_state.surface.configure(&self.gpu_state.device, &self.gpu_state.config);
 		
 		console::log_1(&"resize".into());
 	}

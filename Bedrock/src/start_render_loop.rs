@@ -22,7 +22,7 @@ pub(crate) fn start_render_loop(state: state::State) {
 			}
 		}
 		
-		state_clone.borrow().window
+		state_clone.borrow().web_state.window
 			.request_animation_frame(
 				callback.borrow().as_ref().unwrap().as_ref().unchecked_ref()
 			)
@@ -30,7 +30,7 @@ pub(crate) fn start_render_loop(state: state::State) {
 		
 	}) as Box<dyn FnMut()>));
 	
-	state.borrow().window
+	state.borrow().web_state.window
 		.request_animation_frame(
 			callback_clone.borrow().as_ref().unwrap().as_ref().unchecked_ref(),
 		)
