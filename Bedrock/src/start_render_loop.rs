@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-
+use web_sys::console;
 use crate::state;
 
 
@@ -10,17 +10,30 @@ use crate::state;
 pub(crate) fn start_render_loop(state: state::State) {
 	
 	let state = Rc::new(RefCell::new(state));
-	let callback: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
-	
 	let state_clone = state.clone();
+	
+	let callback: Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>> = Rc::new(RefCell::new(None));
 	let callback_clone = callback.clone();
 	
-	*callback_clone.borrow_mut() = Some(Closure::wrap(Box::new(move || {
-		{
+	let previous_timestamp: Rc<RefCell<f64>> = Rc::new(RefCell::new(0.0));
+	let previous_timestamp_clone = previous_timestamp.clone();
+	
+	*callback_clone.borrow_mut() = Some(Closure::wrap(Box::new(move |timestamp: f64| {
+		
+		let delta_time = {
+			(timestamp - *previous_timestamp_clone.borrow()) / 1000.0
+		};
+		
+		// Some frames are skipped at 120 fps, non are at 240 fps.
+		if delta_time > 1.0 / 240.0 {
+			
 			if let Err(error) = state_clone.borrow_mut().render() {
-				web_sys::console::error_1(&error);
+				console::error_1(&error);
 			}
-		}
+			
+			*previous_timestamp_clone.borrow_mut() = timestamp;
+			
+		} //else { console::log_1(&"skipping frame".into()); }
 		
 		state_clone.borrow().web_state.window
 			.request_animation_frame(
@@ -28,7 +41,7 @@ pub(crate) fn start_render_loop(state: state::State) {
 			)
 			.unwrap();
 		
-	}) as Box<dyn FnMut()>));
+	}) as Box<dyn FnMut(f64)>));
 	
 	state.borrow().web_state.window
 		.request_animation_frame(

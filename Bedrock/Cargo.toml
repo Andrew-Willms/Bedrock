@@ -2,12 +2,12 @@
 name = "bedrock"
 version = "0.1.0"
 edition = "2024"
+description = "A plate tectonics simulator, just for fun."
+repository = "https://github.com/Andrew-Willms/Bedrock"
+license-file = "../LICENSE"
 
 [lib]
 crate-type = ["cdylib"]
-
-[build]
-target = "wasm32-unknown-unknown"
 
 [dependencies]
 wgpu = "30.0.1"
