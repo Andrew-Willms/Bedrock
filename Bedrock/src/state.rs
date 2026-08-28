@@ -4,11 +4,6 @@ use web_sys::{console, HtmlCanvasElement, Window};
 
 
 pub(crate) struct State {
-	pub(crate) device: wgpu::Device,
-	pub(crate) queue: wgpu::Queue,
-	pub(crate) surface: wgpu::Surface<'static>,
-	pub(crate) config: wgpu::SurfaceConfiguration,
-	pub(crate) render_pipeline: wgpu::RenderPipeline,
 	
 	pub(crate) window: Window,
 	pub(crate) canvas: HtmlCanvasElement,
@@ -16,6 +11,15 @@ pub(crate) struct State {
 	pub(crate) last_device_pixel_ratio: f64,
 	pub(crate) last_canvas_css_width: f64,
 	pub(crate) last_canvas_css_height: f64,
+	
+	pub(crate) device: wgpu::Device,
+	pub(crate) queue: wgpu::Queue,
+	pub(crate) surface: wgpu::Surface<'static>,
+	pub(crate) config: wgpu::SurfaceConfiguration,
+	pub(crate) render_pipeline: wgpu::RenderPipeline,
+	
+	pub(crate) particle_count: u32,
+	pub(crate) particle_buffer: wgpu::Buffer
 }
 
 
@@ -88,13 +92,14 @@ impl State {
 			});
 			
 			render_pass.set_pipeline(&self.render_pipeline);
-			render_pass.draw(0..3, 0..1);
+			render_pass.set_vertex_buffer(0, self.particle_buffer.slice(..));
+			render_pass.draw(0..self.particle_count, 0..1);
 		}
 		
 		self.queue.submit(Some(encoder.finish()));
 		self.queue.present(output);
 		
-		Ok(())
+		return Ok(());
 	}
 	
 	pub(crate) fn resize_if_necessary(&mut self) {

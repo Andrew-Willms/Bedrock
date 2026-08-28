@@ -1,8 +1,10 @@
 mod state;
-mod star_render_loop;
+mod start_render_loop;
+mod particle;
 
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
+use crate::particle::{create_particle_buffer, Particle};
 
 
 
@@ -68,7 +70,7 @@ pub async fn main() -> Result<(), JsValue> {
         .formats
         .iter()
         .copied()
-        .find(|f| f.is_srgb())
+        .find(|f| return f.is_srgb())
         .unwrap_or(capabilities.formats[0]);
 
     let config = wgpu::SurfaceConfiguration {
@@ -91,7 +93,21 @@ pub async fn main() -> Result<(), JsValue> {
             include_str!("shaders/shader.wgsl").into()
         ),
     });
-
+    
+    let particle_buffer = create_particle_buffer(&device, 1000);
+    
+    let particle_vertex_layout = wgpu::VertexBufferLayout {
+        array_stride: size_of::<Particle>() as wgpu::BufferAddress,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &[
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x2,
+                offset: 0,
+                shader_location: 0,
+            },
+        ],
+    };
+    
     let render_pipeline = device.create_render_pipeline(
         &wgpu::RenderPipelineDescriptor {
             label: Some("Triangle Render Pipeline"),
@@ -99,7 +115,7 @@ pub async fn main() -> Result<(), JsValue> {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("main_vertex_shader"),
-                buffers: &[],
+                buffers: &[Option::from(particle_vertex_layout)],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -112,7 +128,10 @@ pub async fn main() -> Result<(), JsValue> {
                 })],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
-            primitive: wgpu::PrimitiveState::default(),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::PointList,
+                ..Default::default()
+            },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview_mask: None,
@@ -121,19 +140,21 @@ pub async fn main() -> Result<(), JsValue> {
     );
 
     let state = state::State {
+        window,
+        canvas,
+        last_device_pixel_ratio: device_pixel_ratio,
+        last_canvas_css_width: canvas_bounding_rectangle.width(),
+        last_canvas_css_height: canvas_bounding_rectangle.height(),
         device,
         queue,
         surface,
         config,
         render_pipeline,
-        window,
-        canvas,
-        last_device_pixel_ratio: device_pixel_ratio,
-        last_canvas_css_width: canvas_bounding_rectangle.width(),
-        last_canvas_css_height: canvas_bounding_rectangle.height()
+        particle_buffer,
+        particle_count: 1000
     };
 
-    star_render_loop::start_render_loop(state);
+    start_render_loop::start_render_loop(state);
 
-    Ok(())
+    return Ok(());
 }
