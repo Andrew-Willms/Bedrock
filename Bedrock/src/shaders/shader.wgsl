@@ -22,5 +22,6 @@ fn main_vertex_shader(input: VertexInput) -> VertexOutput {
 
 @fragment
 fn main_fragment_shader() -> @location(0) vec4<f32> {
-    return vec4<f32>(1.0, 1.0, 1.0, 1.0);
+    return vec4<f32>(1.0, 1.0, 1.0, 1.0); // white
+    //return vec4<f32>(0.133, 0.545, 0.133, 1.0); // forest green
 }
