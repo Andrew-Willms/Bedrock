@@ -1,3 +1,6 @@
+override SIMULATION_WIDTH: f32 = 10.0; // in meters
+override SIMULATION_HEIGHT: f32  = 10.0; // in meters
+
 struct Particle {
     mass: f32,
     temperature: f32,
@@ -13,7 +16,7 @@ struct SimulationParams {
 var<storage, read> particles_source: array<Particle>;
 
 @group(0) @binding(1)
-var<storage, read_write> particles_destinatino: array<Particle>;
+var<storage, read_write> particles_destination: array<Particle>;
 
 @group(0) @binding(2)
 var<uniform> params: SimulationParams;
@@ -31,27 +34,27 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     var particle = particles_source[index];
     particle.position += particle.velocity * params.delta_time;
 
-    if (particle.position.x < -0.98) {
-        particle.position.x = -0.98;
+    if (particle.position.x < 0) {
+        particle.position.x = 0;
         particle.velocity.x = -0.95 * particle.velocity.x;
     }
 
-    if (particle.position.x > 0.98) {
-        particle.position.x = 0.98;
+    if (particle.position.x > SIMULATION_WIDTH) {
+        particle.position.x = SIMULATION_WIDTH;
         particle.velocity.x = -0.95 * particle.velocity.x;
     }
 
-    if (particle.position.y < -0.98) {
-        particle.position.y = -0.98;
+    if (particle.position.y < 0) {
+        particle.position.y = 0;
         particle.velocity.y = -0.95 * particle.velocity.y;
     }
 
-    if (particle.position.y > 0.98) {
-        particle.position.y = 0.98;
+    if (particle.position.y > SIMULATION_HEIGHT) {
+        particle.position.y = SIMULATION_HEIGHT;
         particle.velocity.y = -0.95 * particle.velocity.y;
     }
 
     particle.velocity.y -= 0.00981;
 
-    particles_destinatino[index] = particle;
+    particles_destination[index] = particle;
 }

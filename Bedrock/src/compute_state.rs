@@ -3,7 +3,7 @@ use wasm_bindgen::JsValue;
 use wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, Buffer, BufferUsages, Device};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use crate::particle::Particle;
-use crate::simulation_parameters::SimulationParameters;
+use crate::simulation_parameters::{SimulationParameters, SIMULATION_WIDTH, SIMULATION_HEIGHT};
 
 
 
@@ -103,10 +103,16 @@ fn create_populated_particle_buffers(device: &Device, particle_count: usize) -> 
 	
 	for i in 0..particle_count {
 		particles_a.push(Particle {
-			mass: 0.0,
+			mass: 1.0,
 			temperature: 0.0,
-			position: random_2d((i + 1) as u32, -0.98, 0.98), // (i + 1) to offset the hash, otherwise all particles are moving outwards from the center
-			velocity: random_2d(i as u32, -0.5, 0.5)
+			position: [
+				random(i as u32, 0, 0.0, SIMULATION_WIDTH),
+				random(i as u32, 1, 0.0, SIMULATION_HEIGHT)
+			],
+			velocity: [
+				random(i as u32, 2, -0.5, 0.5),
+				random(i as u32, 3, -0.5, 0.5),
+			]
 		});
 	}
 	
@@ -151,7 +157,7 @@ fn create_simulation_parameter_buffer(device: &Device) -> Buffer {
 /// A small hashing algorithm with no dependencies that produces 2-element arrays where each element
 /// is an approximately random value between a and b.
 #[inline]
-fn random_2d(seed: u32, a: f32, b: f32) -> [f32; 2] {
+fn random(seed: u32, sub_seed: u32, min: f32, max: f32) -> f32 {
 	
 	fn hash(mut x: u32) -> u32 {
 		x ^= x >> 16;
@@ -159,15 +165,12 @@ fn random_2d(seed: u32, a: f32, b: f32) -> [f32; 2] {
 		x ^= x >> 15;
 		x = x.wrapping_mul(0x846C_A68B);
 		x ^= x >> 16;
-		x
+		return x;
 	}
 	
-	let h1 = hash(seed);
-	let h2 = hash(seed.wrapping_add(0x9E37_79B9));
-	let range = b - a;
+	const STEP: u32 = 0x9E37_79B9;
+	let range = max - min;
+	let hash_value = hash(seed.wrapping_add(STEP.wrapping_mul(sub_seed)));
 	
-	return [
-		a + (h1 as f32 / u32::MAX as f32) * range,
-		a + (h2 as f32 / u32::MAX as f32) * range,
-	];
+	return min + (hash_value as f32 / u32::MAX as f32) * range;
 }

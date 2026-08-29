@@ -1,3 +1,14 @@
+override SIMULATION_WIDTH: f32 = 10.0; // in meters
+override SIMULATION_HEIGHT: f32  = 10.0; // in meters
+
+const LEFT_DISPLAY_EDGE: f32  = -0.98; // in normalized canvas coordinates
+const RIGHT_DISPLAY_EDGE: f32  = 0.98; // in normalized canvas coordinates
+const TOP_DISPLAY_EDGE: f32  = 0.98; // in normalized canvas coordinates
+const BOTTOM_DISPLAY_EDGE: f32  = -0.98; // in normalized canvas coordinates
+
+const DISPLAY_HORIZONTAL_SPAN: f32 = RIGHT_DISPLAY_EDGE - LEFT_DISPLAY_EDGE;
+const DISPLAY_VERTICAL_SPAN: f32 = TOP_DISPLAY_EDGE - BOTTOM_DISPLAY_EDGE;
+
 struct VertexInput {
     @location(0) position: vec2<f32>,
 };
@@ -12,7 +23,8 @@ fn main_vertex_shader(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
 
     output.position = vec4<f32>(
-        input.position,
+        LEFT_DISPLAY_EDGE + ((input.position.x / SIMULATION_WIDTH) * DISPLAY_HORIZONTAL_SPAN),
+        BOTTOM_DISPLAY_EDGE + ((input.position.y / SIMULATION_WIDTH) * DISPLAY_VERTICAL_SPAN),
         0.0,
         1.0
     );

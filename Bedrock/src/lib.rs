@@ -13,6 +13,7 @@ use wgpu::{BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, Bin
 use crate::compute_state::initialize_compute_state;
 use crate::gpu_state::get_gpu_state;
 use crate::particle::{Particle};
+use crate::simulation_parameters::{SIMULATION_HEIGHT, SIMULATION_WIDTH};
 use crate::web_state::get_web_state;
 
 
@@ -141,7 +142,13 @@ fn initialize_compute_pipeline(device: &Device, compute_bind_group_layout: &Bind
             layout: Some(&compute_pipeline_layout),
             module: &compute_shader,
             entry_point: Some("main"),
-            compilation_options: PipelineCompilationOptions::default(),
+            compilation_options: PipelineCompilationOptions {
+                constants: &[
+                    ("SIMULATION_WIDTH", SIMULATION_WIDTH as f64),
+                    ("SIMULATION_HEIGHT", SIMULATION_HEIGHT as f64)
+                ],
+                ..Default::default()
+            },
             cache: None,
         },
     ));
@@ -184,7 +191,13 @@ fn initialize_render_pipeline(device: &Device, config: &SurfaceConfiguration) ->
                     blend: Some(BlendState::REPLACE),
                     write_mask: ColorWrites::ALL,
                 })],
-                compilation_options: PipelineCompilationOptions::default(),
+                compilation_options: PipelineCompilationOptions {
+                    constants: &[
+                        ("SIMULATION_WIDTH", SIMULATION_WIDTH as f64),
+                        ("SIMULATION_HEIGHT", SIMULATION_HEIGHT as f64)
+                    ],
+                    ..Default::default()
+                },
             }),
             primitive: PrimitiveState {
                 topology: PrimitiveTopology::PointList,
