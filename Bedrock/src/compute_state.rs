@@ -103,6 +103,8 @@ fn create_populated_particle_buffers(device: &Device, particle_count: usize) -> 
 	
 	for i in 0..particle_count {
 		particles_a.push(Particle {
+			mass: 0.0,
+			temperature: 0.0,
 			position: [ 0.0, 0.0 ],
 			velocity: random_2d(i as u32, -0.5, 0.5)
 		});

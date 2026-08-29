@@ -1,4 +1,6 @@
 struct Particle {
+    mass: f32,
+    temperature: f32,
     position: vec2<f32>,
     velocity: vec2<f32>,
 };
@@ -29,13 +31,27 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     var particle = particles_source[index];
     particle.position += particle.velocity * params.delta_time;
 
-    if (particle.position.x < -1.0 || particle.position.x > 1.0) {
-        particle.velocity.x = -particle.velocity.x;
+    if (particle.position.x < -0.98) {
+        particle.position.x = -0.98;
+        particle.velocity.x = -0.95 * particle.velocity.x;
     }
 
-    if (particle.position.y < -1.0 || particle.position.y > 1.0) {
-        particle.velocity.y = -particle.velocity.y;
+    if (particle.position.x > 0.98) {
+        particle.position.x = 0.98;
+        particle.velocity.x = -0.95 * particle.velocity.x;
     }
+
+    if (particle.position.y < -0.98) {
+        particle.position.y = -0.98;
+        particle.velocity.y = -0.95 * particle.velocity.y;
+    }
+
+    if (particle.position.y > 0.98) {
+        particle.position.y = 0.98;
+        particle.velocity.y = -0.95 * particle.velocity.y;
+    }
+
+    particle.velocity.y -= 0.00981;
 
     particles_destinatino[index] = particle;
 }

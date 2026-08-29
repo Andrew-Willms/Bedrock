@@ -160,7 +160,7 @@ fn initialize_render_pipeline(device: &Device, config: &SurfaceConfiguration) ->
         attributes: &[
             VertexAttribute {
                 format: VertexFormat::Float32x2,
-                offset: 0,
+                offset: 8,
                 shader_location: 0,
             },
         ],
