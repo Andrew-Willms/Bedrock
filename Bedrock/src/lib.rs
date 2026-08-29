@@ -181,7 +181,13 @@ fn initialize_render_pipeline(device: &Device, config: &SurfaceConfiguration) ->
                 module: &shader,
                 entry_point: Some("main_vertex_shader"),
                 buffers: &[Some(particle_vertex_layout)],
-                compilation_options: PipelineCompilationOptions::default(),
+                compilation_options: PipelineCompilationOptions {
+                    constants: &[
+                        ("SIMULATION_WIDTH", SIMULATION_WIDTH as f64),
+                        ("SIMULATION_HEIGHT", SIMULATION_HEIGHT as f64)
+                    ],
+                    ..Default::default()
+                }
             },
             fragment: Some(FragmentState {
                 module: &shader,
@@ -191,13 +197,7 @@ fn initialize_render_pipeline(device: &Device, config: &SurfaceConfiguration) ->
                     blend: Some(BlendState::REPLACE),
                     write_mask: ColorWrites::ALL,
                 })],
-                compilation_options: PipelineCompilationOptions {
-                    constants: &[
-                        ("SIMULATION_WIDTH", SIMULATION_WIDTH as f64),
-                        ("SIMULATION_HEIGHT", SIMULATION_HEIGHT as f64)
-                    ],
-                    ..Default::default()
-                },
+                compilation_options: PipelineCompilationOptions::default(),
             }),
             primitive: PrimitiveState {
                 topology: PrimitiveTopology::PointList,
