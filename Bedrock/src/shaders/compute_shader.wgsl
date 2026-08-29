@@ -36,26 +36,27 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     particle.position += particle.velocity * params.delta_time;
 
     if (particle.position.x < 0) {
-        particle.position.x = 0;
+        particle.position.x = -particle.position.x;
         particle.velocity.x = -0.95 * particle.velocity.x;
     }
 
     if (particle.position.x > SIMULATION_WIDTH) {
-        particle.position.x = SIMULATION_WIDTH;
+        particle.position.x = SIMULATION_WIDTH - (particle.position.x - SIMULATION_WIDTH);
         particle.velocity.x = -0.95 * particle.velocity.x;
     }
 
     if (particle.position.y < 0) {
-        particle.position.y = 0;
+        particle.position.y = -particle.position.y;
         particle.velocity.y = -0.95 * particle.velocity.y;
     }
 
     if (particle.position.y > SIMULATION_HEIGHT) {
-        particle.position.y = SIMULATION_HEIGHT;
+        particle.position.y = SIMULATION_HEIGHT - (particle.position.y - SIMULATION_HEIGHT);;
         particle.velocity.y = -0.95 * particle.velocity.y;
     }
 
-    particle.velocity.y -= 0.00981;
+    let force: vec2<f32> = vec2<f32>(0.0, -9.81 * particle.mass);
+    particle.velocity += force / particle.mass * params.delta_time;
 
     particles_destination[index] = particle;
 }
