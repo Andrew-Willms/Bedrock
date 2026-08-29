@@ -6,10 +6,11 @@ struct Particle {
     temperature: f32,
     position: vec2<f32>,
     velocity: vec2<f32>,
+    neighbours: array<u32, 8>
 };
 
 struct SimulationParams {
-    delta_time: f32,
+    delta_time: f32
 };
 
 @group(0) @binding(0)

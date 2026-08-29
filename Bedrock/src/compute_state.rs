@@ -112,7 +112,8 @@ fn create_populated_particle_buffers(device: &Device, particle_count: usize) -> 
 			velocity: [
 				random(i as u32, 2, -0.5, 0.5),
 				random(i as u32, 3, -0.5, 0.5),
-			]
+			],
+			neighbours: [0; 8]
 		});
 	}
 	
