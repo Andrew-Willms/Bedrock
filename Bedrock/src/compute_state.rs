@@ -2,7 +2,7 @@ use bytemuck::Zeroable;
 use wasm_bindgen::JsValue;
 use wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, Buffer, BufferUsages, Device};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
-use crate::particle::Particle;
+use crate::particle::{Particle, set_particle_neighbors};
 use crate::simulation_parameters::{SimulationParameters, SIMULATION_WIDTH, SIMULATION_HEIGHT};
 
 
@@ -113,9 +113,11 @@ fn create_populated_particle_buffers(device: &Device, particle_count: usize) -> 
 				random(i as u32, 2, -0.5, 0.5),
 				random(i as u32, 3, -0.5, 0.5),
 			],
-			neighbours: [0; 8]
+			neighbors: [0; 8]
 		});
 	}
+	
+	set_particle_neighbors(&mut particles_a);
 	
 	return device.create_buffer_init(
 		&BufferInitDescriptor {
