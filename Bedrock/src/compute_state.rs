@@ -105,7 +105,7 @@ fn create_populated_particle_buffers(device: &Device, particle_count: usize) -> 
 		particles_a.push(Particle {
 			mass: 0.0,
 			temperature: 0.0,
-			position: [ 0.0, 0.0 ],
+			position: random_2d((i + 1) as u32, -0.98, 0.98), // (i + 1) to offset the hash, otherwise all particles are moving outwards from the center
 			velocity: random_2d(i as u32, -0.5, 0.5)
 		});
 	}
