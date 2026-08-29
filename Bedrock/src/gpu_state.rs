@@ -1,12 +1,12 @@
 use wasm_bindgen::JsValue;
-use wgpu::{Adapter, Backends, DeviceDescriptor, Instance, InstanceDescriptor, PowerPreference, PresentMode, RequestAdapterOptions, Surface, SurfaceColorSpace, SurfaceConfiguration, SurfaceTarget, TextureUsages};
+use wgpu::{Adapter, Backends, Device, DeviceDescriptor, Instance, InstanceDescriptor, PowerPreference, PresentMode, Queue, RequestAdapterOptions, Surface, SurfaceColorSpace, SurfaceConfiguration, SurfaceTarget, TextureUsages};
 use crate::web_state::WebState;
 
 
 
 pub(crate) struct GpuState {
-	pub(crate) device: wgpu::Device,
-	pub(crate) queue: wgpu::Queue,
+	pub(crate) device: Device,
+	pub(crate) queue: Queue,
 	pub(crate) surface: Surface<'static>,
 	pub(crate) config: SurfaceConfiguration,
 }

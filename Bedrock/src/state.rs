@@ -1,5 +1,7 @@
 use wasm_bindgen::JsValue;
 use web_sys::{console};
+use wgpu::{Color, CommandEncoderDescriptor, ComputePassDescriptor, ComputePipeline, CurrentSurfaceTexture, LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, StoreOp, TextureViewDescriptor};
+use crate::compute_state::ComputeState;
 use crate::gpu_state::GpuState;
 use crate::simulation_parameters::SimulationParameters;
 use crate::web_state::WebState;
@@ -11,14 +13,12 @@ pub(crate) struct State {
 	pub(crate) web_state: WebState,
 	pub(crate) gpu_state: GpuState,
 	
-	pub(crate) compute_pipeline: wgpu::ComputePipeline,
-	pub(crate) compute_bind_group: wgpu::BindGroup,
+	pub(crate) compute_pipeline: ComputePipeline,
+	pub(crate) render_pipeline: RenderPipeline,
 	
-	pub(crate) render_pipeline: wgpu::RenderPipeline,
+	pub(crate) compute_state: ComputeState,
 	
-	pub(crate) particle_count: u32,
-	pub(crate) simulation_parameter_buffer: wgpu::Buffer,
-	pub(crate) particle_buffer: wgpu::Buffer,
+	pub(crate) particle_count: u32
 }
 
 
@@ -30,44 +30,44 @@ impl State {
 		self.resize_if_necessary();
 		
 		let output = match self.gpu_state.surface.get_current_texture() {
-			wgpu::CurrentSurfaceTexture::Success(texture) => texture,
+			CurrentSurfaceTexture::Success(texture) => texture,
 			
-			wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
+			CurrentSurfaceTexture::Suboptimal(texture) => texture,
 			
-			wgpu::CurrentSurfaceTexture::Timeout => {
+			CurrentSurfaceTexture::Timeout => {
 				return Err(JsValue::from_str("Surface texture acquisition timed out"));
 			}
 			
-			wgpu::CurrentSurfaceTexture::Occluded => {
+			CurrentSurfaceTexture::Occluded => {
 				return Err(JsValue::from_str("Surface is occluded"));
 			}
 			
-			wgpu::CurrentSurfaceTexture::Outdated => {
+			CurrentSurfaceTexture::Outdated => {
 				return Err(JsValue::from_str("Surface is outdated"));
 			}
 			
-			wgpu::CurrentSurfaceTexture::Lost => {
+			CurrentSurfaceTexture::Lost => {
 				return Err(JsValue::from_str("Surface was lost"));
 			}
 			
-			wgpu::CurrentSurfaceTexture::Validation => {
+			CurrentSurfaceTexture::Validation => {
 				return Err(JsValue::from_str(
 					"Surface texture acquisition failed validation",
 				));
 			}
 		};
 		
-		let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+		let view = output.texture.create_view(&TextureViewDescriptor::default());
 		
 		let parameters = SimulationParameters {
 			delta_time: 1.0 / 60.0,
 			_padding: [0.0; 3],
 		};
 		
-		self.gpu_state.queue.write_buffer(&self.simulation_parameter_buffer, 0, bytemuck::bytes_of(&parameters));
+		self.gpu_state.queue.write_buffer(&self.compute_state.simulation_parameter_buffer, 0, bytemuck::bytes_of(&parameters));
 		
 		let mut encoder = self.gpu_state.device.create_command_encoder(
-			&wgpu::CommandEncoderDescriptor {
+			&CommandEncoderDescriptor {
 				label: Some("Command Encoder"),
 			}
 		);
@@ -76,36 +76,38 @@ impl State {
 		// is returned before it needs to be used for render_pass.
 		{
 			let mut compute_pass = encoder.begin_compute_pass(
-				&wgpu::ComputePassDescriptor {
+				&ComputePassDescriptor {
 					label: Some("Particle Compute Pass"),
 					timestamp_writes: None,
 				},
 			);
 			
 			compute_pass.set_pipeline(&self.compute_pipeline);
-			compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
+			compute_pass.set_bind_group(0, self.compute_state.current_bind_group(), &[]);
 			
 			let workgroup_count = self.particle_count.div_ceil(64);
 			compute_pass.dispatch_workgroups(workgroup_count,1,1);
+			
+			self.compute_state.swap_particle_buffer_and_bind_group();
 		}
 		
 		// This scope is to ensure the mutable borrow of encoder (using when assigning to render_pass)
 		// is returned before the encoder is finished and submitted to the queue.
 		{
-			let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+			let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
 				label: Some("Render"),
-				color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+				color_attachments: &[Some(RenderPassColorAttachment {
 					view: &view,
 					depth_slice: None,
 					resolve_target: None,
-					ops: wgpu::Operations {
-						load: wgpu::LoadOp::Clear(wgpu::Color {
+					ops: Operations {
+						load: LoadOp::Clear(Color {
 							r: 0.05,
 							g: 0.05,
 							b: 0.05,
 							a: 1.0,
 						}),
-						store: wgpu::StoreOp::Store,
+						store: StoreOp::Store,
 					},
 				})],
 				depth_stencil_attachment: None,
@@ -115,7 +117,7 @@ impl State {
 			});
 			
 			render_pass.set_pipeline(&self.render_pipeline);
-			render_pass.set_vertex_buffer(0, self.particle_buffer.slice(..));
+			render_pass.set_vertex_buffer(0, self.compute_state.current_particle_buffer().slice(..));
 			render_pass.draw(0..self.particle_count, 0..1);
 		}
 		

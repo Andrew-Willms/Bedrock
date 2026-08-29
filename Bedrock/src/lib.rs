@@ -4,13 +4,15 @@ mod particle;
 mod simulation_parameters;
 mod web_state;
 mod gpu_state;
+mod compute_state;
+
+
 
 use wasm_bindgen::prelude::*;
-use wgpu::*;
-
+use wgpu::{BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, BufferAddress, BufferBindingType, ColorTargetState, ColorWrites, ComputePipeline, ComputePipelineDescriptor, Device, FragmentState, MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, SurfaceConfiguration, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode};
+use crate::compute_state::initialize_compute_state;
 use crate::gpu_state::get_gpu_state;
-use crate::particle::{create_particle_buffer, Particle};
-use crate::simulation_parameters::create_simulation_parameter_buffer;
+use crate::particle::{Particle};
 use crate::web_state::get_web_state;
 
 
@@ -31,29 +33,25 @@ use crate::web_state::get_web_state;
 pub async fn main() -> Result<(), JsValue> {
     
     initialize_logging_in_debug()?;
-
+    
     let web_state = get_web_state()?;
     let gpu_state = get_gpu_state(&web_state).await?;
     
-    let particle_buffer = create_particle_buffer(&gpu_state.device, 1000);
-    let simulation_parameter_buffer = create_simulation_parameter_buffer(&gpu_state.device);
+    let layout = initialize_layout(&gpu_state.device)?;
     
-    let (compute_pipeline, compute_bind_group) =
-        initialize_compute(&gpu_state.device, &particle_buffer, &simulation_parameter_buffer);
-    
+    let compute_pipeline = initialize_compute_pipeline(&gpu_state.device, &layout)?;
     let render_pipeline = initialize_render_pipeline(&gpu_state.device, &gpu_state.config);
+    
+    let particle_count: usize = 1000;
+    let compute_state = initialize_compute_state(&gpu_state.device, particle_count, &layout)?;
     
     let state = state::State {
         web_state,
         gpu_state,
-        
         compute_pipeline,
-        compute_bind_group,
         render_pipeline,
-        
-        particle_buffer,
-        simulation_parameter_buffer,
-        particle_count: 1000
+        compute_state,
+        particle_count: particle_count as u32
     };
 
     start_render_loop::start_render_loop(state);
@@ -73,23 +71,26 @@ fn initialize_logging_in_debug() -> Result<(), JsValue> {
     return Ok(());
 }
 
-fn initialize_compute(device: &Device, particle_buffer: &Buffer, simulation_parameter_buffer: &Buffer) -> (ComputePipeline, BindGroup) {
+fn initialize_layout(device: &Device) -> Result<BindGroupLayout, JsValue> {
     
-    let compute_shader = device.create_shader_module(
-        ShaderModuleDescriptor {
-            label: Some("Particle Compute Shader"),
-            source: ShaderSource::Wgsl(
-                include_str!("shaders/compute_shader.wgsl").into()
-            )
-        }
-    );
-    
-    let compute_bind_group_layout = device.create_bind_group_layout(
+    return Ok(device.create_bind_group_layout(
         &BindGroupLayoutDescriptor {
             label: Some("Compute Bind Group Layout"),
             entries: &[
                 BindGroupLayoutEntry {
                     binding: 0,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage {
+                            read_only: true,
+                        },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
                     visibility: ShaderStages::COMPUTE,
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Storage {
@@ -101,7 +102,7 @@ fn initialize_compute(device: &Device, particle_buffer: &Buffer, simulation_para
                     count: None,
                 },
                 BindGroupLayoutEntry {
-                    binding: 1,
+                    binding: 2,
                     visibility: ShaderStages::COMPUTE,
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Uniform,
@@ -112,6 +113,18 @@ fn initialize_compute(device: &Device, particle_buffer: &Buffer, simulation_para
                 },
             ],
         },
+    ));
+}
+
+fn initialize_compute_pipeline(device: &Device, compute_bind_group_layout: &BindGroupLayout) -> Result<ComputePipeline, JsValue> {
+    
+    let compute_shader = device.create_shader_module(
+        ShaderModuleDescriptor {
+            label: Some("Particle Compute Shader"),
+            source: ShaderSource::Wgsl(
+                include_str!("shaders/compute_shader.wgsl").into()
+            )
+        }
     );
     
     let compute_pipeline_layout = device.create_pipeline_layout(
@@ -122,37 +135,16 @@ fn initialize_compute(device: &Device, particle_buffer: &Buffer, simulation_para
         },
     );
     
-    return (
-        
-        device.create_compute_pipeline(
-            &ComputePipelineDescriptor {
-                label: Some("Particle Compute Pipeline"),
-                layout: Some(&compute_pipeline_layout),
-                module: &compute_shader,
-                entry_point: Some("main"),
-                compilation_options: PipelineCompilationOptions::default(),
-                cache: None,
-            },
-        ),
-        
-        device.create_bind_group(
-            &BindGroupDescriptor {
-                label: Some("Compute Bind Group"),
-                layout: &compute_bind_group_layout,
-                entries: &[
-                    BindGroupEntry {
-                        binding: 0,
-                        resource: particle_buffer.as_entire_binding(),
-                    },
-                    BindGroupEntry {
-                        binding: 1,
-                        resource: simulation_parameter_buffer.as_entire_binding(),
-                    },
-                ],
-            },
-        )
-        
-    );
+    return Ok(device.create_compute_pipeline(
+        &ComputePipelineDescriptor {
+            label: Some("Particle Compute Pipeline"),
+            layout: Some(&compute_pipeline_layout),
+            module: &compute_shader,
+            entry_point: Some("main"),
+            compilation_options: PipelineCompilationOptions::default(),
+            cache: None,
+        },
+    ));
 }
 
 fn initialize_render_pipeline(device: &Device, config: &SurfaceConfiguration) -> RenderPipeline {
