@@ -24,7 +24,7 @@ fn main_vertex_shader(input: VertexInput) -> VertexOutput {
 
     output.position = vec4<f32>(
         LEFT_DISPLAY_EDGE + ((input.position.x / SIMULATION_WIDTH) * DISPLAY_HORIZONTAL_SPAN),
-        BOTTOM_DISPLAY_EDGE + ((input.position.y / SIMULATION_WIDTH) * DISPLAY_VERTICAL_SPAN),
+        BOTTOM_DISPLAY_EDGE + ((input.position.y / SIMULATION_HEIGHT) * DISPLAY_VERTICAL_SPAN),
         0.0,
         1.0
     );
