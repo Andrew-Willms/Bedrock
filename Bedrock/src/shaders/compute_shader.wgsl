@@ -134,13 +134,12 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 		// If the the particle is outside of bounds again assume it's making many very small bounces and approximate this to having settled.
 		if (unchecked_position.x < 0) {
-			unchecked_velocity.x = 0;
 			unchecked_position.x = 0;
+			unchecked_velocity.x = 0;
 		}
-	}
 
 	// Check right wall
-	if (unchecked_position.x > SIMULATION_WIDTH) {
+	} else if (unchecked_position.x > SIMULATION_WIDTH) {
 
 		let t_impact: f32 = t_impact(SIMULATION_WIDTH - particle.position.x, -particle.velocity.x, -acceleration.x);
 		let t_remaining: f32 = params.delta_time - t_impact;
@@ -159,8 +158,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 		// If the the particle is outside of bounds again assume it's making many very small bounces and approximate this to having settled.
 		if (unchecked_position.x > SIMULATION_WIDTH) {
-			unchecked_velocity.x = 0;
 			unchecked_position.x = SIMULATION_WIDTH;
+			unchecked_velocity.x = 0;
 		}
 	}
 
@@ -184,13 +183,12 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 		// If the the particle is outside of bounds again assume it's making many very small bounces and approximate this to having settled.
 		if (unchecked_position.y < 0) {
-			unchecked_velocity.y = 0;
 			unchecked_position.y = 0;
+			unchecked_velocity.y = 0;
 		}
-	}
 
 	// Check ceiling
-	if (unchecked_position.y > SIMULATION_HEIGHT) {
+	} else if (unchecked_position.y > SIMULATION_HEIGHT) {
 
 		let t_impact: f32 = t_impact(SIMULATION_HEIGHT - particle.position.y, -particle.velocity.y, -acceleration.y);
 		let t_remaining: f32 = params.delta_time - t_impact;
@@ -209,8 +207,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 		// If the the particle is outside of bounds again assume it's making many very small bounces and approximate this to having settled.
 		if (unchecked_position.y > SIMULATION_HEIGHT) {
-			unchecked_velocity.y = 0;
 			unchecked_position.y = SIMULATION_HEIGHT;
+			unchecked_velocity.y = 0;
 		}
 	}
 
