@@ -1,6 +1,7 @@
 override SIMULATION_WIDTH: f32 = 10.0; // in meters
 override SIMULATION_HEIGHT: f32 = 10.0; // in meters
 
+const HALF_NEIGHBOR_COUNT: u32 = 8;
 const BOUNCE_EFFICIENCY: f32 = 0.95;
 const F32_MIN_FINITE_VALUE: f32 = -3.402823466e+38f; // wgsl has no NaN literals
 
@@ -11,7 +12,7 @@ struct Particle {
 	temperature: f32,
 	position: vec2<f32>,
 	velocity: vec2<f32>,
-	neighbors: array<u32, 8>
+	neighbors: array<u32, HALF_NEIGHBOR_COUNT>
 };
 
 struct SimulationParams {
@@ -95,16 +96,34 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 	var particle: Particle = particles_source[index];
 
-	//// First pass position update ////////////////////////////////////////////////////////////////////////////////////
+	//// Calculate acceleration ////////////////////////////////////////////////////////////////////////////////////////
 
-	var force: vec2<f32> = vec2<f32>(0.0, -9.81 * particle.mass);
+	// Set the initial force on the particle to be the force of gravity if it is not on the floor.
+	var force: vec2<f32> = select(
+        vec2<f32>(0.0, -9.81 * particle.mass),
+        vec2<f32>(0.0, 0.0),
+        particle.position.y == 0.0 && particle.velocity.y == 0.0
+    );
 
-	// If the particle is on the floor cancel gravity.
-	if (particle.position.y == 0 && particle.velocity.y == 0) {
-		force = vec2<f32>(0.0, 0);
-	}
+	// Repulsion force between particles.
+//	for (var i: u32 = 0; i < HALF_NEIGHBOR_COUNT; i = i + 1) {
+//
+//		let neighbor_a_index: u32 = particle.neighbors[i] >> 16u;
+//		let neighbor_b_index: u32 = particle.neighbors[i] & 0x0000FFFFu;
+//
+//		let neighbor_a: Particle = particles_source[neighbor_a_index];
+//		let neighbor_b: Particle = particles_source[neighbor_b_index];
+//
+//		let neighbor_a_force: vec2<f32> = particle.position - neighbor_a.position;
+//		let neighbor_b_force: vec2<f32> = particle.position - neighbor_b.position;
+//
+//		force += 0.001 / neighbor_a_force;
+//		force += 0.001 / neighbor_b_force;
+//	}
 
 	let acceleration: vec2<f32> = force / particle.mass;
+
+	//// First pass position update ////////////////////////////////////////////////////////////////////////////////////
 
 	var unchecked_velocity = particle.velocity + acceleration * params.delta_time;
 	var unchecked_position =
@@ -216,23 +235,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 	particle.velocity = unchecked_velocity;
 
 
-	//// Calculate forces //////////////////////////////////////////////////////////////////////////////////////////////
-
-	// Repulsion force between particles.
-//	for (var i: i32 = 0; i < 8; i = i + 1) {
-//
-//		let neighbor_a_index: u32 = particle.neighbors[i] >> 16u;
-//		let neighbor_b_index: u32 = particle.neighbors[i] & 0x0000FFFFu;
-//
-//		let neighbor_a: Particle = particles_source[neighbor_a_index];
-//		let neighbor_b: Particle = particles_source[neighbor_b_index];
-//
-//		let vector_a: vec2<f32> = particle.position - neighbor_a.position;
-//		let vector_b: vec2<f32> = particle.position - neighbor_b.position;
-//
-//		force += 0.001 / vector_a;
-//		force += 0.001 / vector_b;
-//	}
+	//// Update particle position //////////////////////////////////////////////////////////////////////////////////////
 
 	particles_destination[index] = particle;
 }
