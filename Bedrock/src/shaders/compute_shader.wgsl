@@ -122,9 +122,9 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 		// Error state
 		if (t_impact == F32_MIN_FINITE_VALUE || t_remaining < 0) {
-//			particles_destination[index].position = vec2<f32>(5.0, 8.0);
-//			particles_destination[index].velocity = vec2<f32>(0.0, 0.0);
-//			return;
+			particles_destination[index].position = vec2<f32>(5.0, 8.0);
+			particles_destination[index].velocity = vec2<f32>(0.0, 0.0);
+			return;
 		}
 
 		let x_velocity_post_impact: f32 = -BOUNCE_EFFICIENCY * (particle.velocity.x + acceleration.x * t_impact);
@@ -147,9 +147,9 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 		// Error state
 		if (t_impact == F32_MIN_FINITE_VALUE || t_remaining < 0) {
-//			particles_destination[index].position = vec2<f32>(5.0, 8.0);
-//			particles_destination[index].velocity = vec2<f32>(0.0, 0.0);
-//			return;
+			particles_destination[index].position = vec2<f32>(5.0, 8.0);
+			particles_destination[index].velocity = vec2<f32>(0.0, 0.0);
+			return;
 		}
 
 		let x_velocity_post_impact: f32 = -BOUNCE_EFFICIENCY * (particle.velocity.x + acceleration.x * t_impact);
@@ -192,16 +192,16 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 	// Check ceiling
 	if (unchecked_position.y > SIMULATION_HEIGHT) {
 
-		let t_impact: f32 = t_impact(SIMULATION_HEIGHT - particle.position.y, particle.velocity.y, acceleration.y);
+		let t_impact: f32 = t_impact(SIMULATION_HEIGHT - particle.position.y, -particle.velocity.y, -acceleration.y);
 		let t_remaining: f32 = params.delta_time - t_impact;
 
 		let y_velocity_post_impact: f32 = -BOUNCE_EFFICIENCY * (particle.velocity.y + acceleration.y * t_impact);
 
 		// Error state
 		if (t_impact == F32_MIN_FINITE_VALUE || t_remaining < 0) {
-//			particles_destination[index].position = vec2<f32>(5.0, 8.0);
-//			particles_destination[index].velocity = vec2<f32>(0.0, 0.0);
-//			return;
+			particles_destination[index].position = vec2<f32>(5.0, 8.0);
+			particles_destination[index].velocity = vec2<f32>(0.0, 0.0);
+			return;
 		}
 
 		unchecked_velocity.y = y_velocity_post_impact + acceleration.y * t_remaining;
