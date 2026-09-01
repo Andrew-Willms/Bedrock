@@ -144,7 +144,7 @@ fn create_empty_particle_buffers(device: &Device, particle_count: usize) -> Buff
 fn create_simulation_parameter_buffer(device: &Device) -> Buffer {
 	
 	let simulation_params = SimulationParameters {
-		delta_time: 0.0,
+		delta_time: 1.0 / 60.0,
 		_padding: [0.0; 3],
 	};
 	
