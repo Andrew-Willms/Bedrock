@@ -2,7 +2,7 @@ override SIMULATION_WIDTH: f32 = 10.0; // in meters
 override SIMULATION_HEIGHT: f32 = 10.0; // in meters
 
 const HALF_NEIGHBOR_COUNT: u32 = 8;
-const ONE_OVER_HALF_NEIGHBOR_COUNT: f32 = 0.125; // optimization for "i / HALF_NEIGHBOR_COUNT"
+const HALF_NEIGHBOR_COUNT_RECIPROCAL: f32 = 0.125; // optimization for "i / HALF_NEIGHBOR_COUNT"
 const BOUNCE_EFFICIENCY: f32 = 0.95;
 const F32_MIN_FINITE_VALUE: f32 = -3.402823466e+38f; // wgsl has no NaN literals
 
