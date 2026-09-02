@@ -106,8 +106,6 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 		particle.position.y == 0.0 && particle.velocity.y == 0.0
 	);
 
-	var neighbor_force: vec2<f32> = vec2<f32>(0.0, 0.0);
-
 	// Repulsion force between particles.
 	for (var i: u32 = 0; i < HALF_NEIGHBOR_COUNT; i = i + 1) {
 
@@ -136,31 +134,25 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 		// in the same place in eachother's neighbor array.
 		// Finally, it is desirable that computing the vector be no slower than computing the default case.
 
-		neighbor_force += select(
+		force += select(
 			(neighbor_a_delta / neighbor_a_distance) * neighbor_a_force_magnitude,
-			vec2<f32>(0.0, 0.0),
-			//vec2<f32>(0.5, f32(i) * ONE_OVER_HALF_NEIGHBOR_COUNT) * neighbor_a_force_magnitude,
+			vec2<f32>(0.5, f32(i) * HALF_NEIGHBOR_COUNT_RECIPROCAL) * neighbor_a_force_magnitude,
 			neighbor_a_distance == 0);
 
-		neighbor_force += select(
+		force += select(
             (neighbor_b_delta / neighbor_b_distance) * neighbor_b_force_magnitude,
-            vec2<f32>(0.0, 0.0),
-            //vec2<f32>(-0.5, f32(i) * ONE_OVER_HALF_NEIGHBOR_COUNT) * neighbor_b_force_magnitude,
+            vec2<f32>(-0.5, f32(i) * HALF_NEIGHBOR_COUNT_RECIPROCAL) * neighbor_b_force_magnitude,
             neighbor_b_distance == 0);
 	}
 
 	// TODO: update neighbors
 
-	// This if statement is used for debugging to test the value of neighbor_force.
-	// If this if block is executed all the particles freeze in place.
-//	if (neighbor_force.y >= 0) {
+//	if (force.y >= 0) {
 //		particles_destination[index].position = particle.position;
 //		particles_destination[index].velocity = vec2<f32>(0.0, 0.0);
 //		force = vec2<f32>(0.0, 0.0);
 //		return;
 //	}
-
-	force += neighbor_force; // <-- uncommenting this line makes everything blow up
 
 	let acceleration: vec2<f32> = force / particle.mass;
 

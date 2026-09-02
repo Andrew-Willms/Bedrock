@@ -3,7 +3,7 @@ use web_sys::{console};
 use wgpu::{Color, CommandEncoderDescriptor, ComputePassDescriptor, ComputePipeline, CurrentSurfaceTexture, LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, StoreOp, TextureViewDescriptor};
 use crate::compute_state::ComputeState;
 use crate::gpu_state::GpuState;
-use crate::simulation_parameters::SimulationParameters;
+use crate::simulation_parameters::{SimulationParameters, SIMULATION_TIME_STEP};
 use crate::web_state::WebState;
 
 
@@ -60,7 +60,7 @@ impl State {
 		let view = output.texture.create_view(&TextureViewDescriptor::default());
 		
 		let parameters = SimulationParameters {
-			delta_time: 1.0 / 60.0,
+			delta_time: SIMULATION_TIME_STEP,
 			_padding: [0.0; 3],
 		};
 		

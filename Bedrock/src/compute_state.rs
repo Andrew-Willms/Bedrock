@@ -3,7 +3,7 @@ use wasm_bindgen::JsValue;
 use wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, Buffer, BufferUsages, Device};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use crate::particle::{Particle, set_particle_neighbors};
-use crate::simulation_parameters::{SimulationParameters, SIMULATION_WIDTH, SIMULATION_HEIGHT};
+use crate::simulation_parameters::{SimulationParameters, SIMULATION_WIDTH, SIMULATION_HEIGHT, SIMULATION_TIME_STEP};
 
 
 
@@ -144,7 +144,7 @@ fn create_empty_particle_buffers(device: &Device, particle_count: usize) -> Buff
 fn create_simulation_parameter_buffer(device: &Device) -> Buffer {
 	
 	let simulation_params = SimulationParameters {
-		delta_time: 1.0 / 60.0,
+		delta_time: SIMULATION_TIME_STEP,
 		_padding: [0.0; 3],
 	};
 	
