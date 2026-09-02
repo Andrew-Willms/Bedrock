@@ -1,4 +1,16 @@
-use web_sys::console;
+//use web_sys::console;
+
+
+
+//type ParticleAddress = u16;
+type PackedParticleAddress = u32;
+
+const PARTICLE_INDEX_PACKING_BIT_SHIFT: usize = 16;
+const MAX_PARTICLE_INDEX: usize = u16::MAX as usize;
+const MAX_PARTICLE_COUNT: usize = MAX_PARTICLE_INDEX + 1;
+
+const NEIGHBOR_ARRAY_SIZE_U32: usize = 8;
+const NEIGHBOR_ARRAY_SIZE: usize = NEIGHBOR_ARRAY_SIZE_U32 * 2;
 
 
 
@@ -9,7 +21,7 @@ pub struct Particle {
 	pub(crate) temperature: f32,
 	pub(crate) position: [f32; 2],
 	pub(crate) velocity: [f32; 2],
-	pub(crate) neighbors: [u32; 8] // each element stores 2 16-bit indices  // todo: fix magic number
+	pub(crate) neighbors: [PackedParticleAddress; NEIGHBOR_ARRAY_SIZE_U32] // each element stores 2 16-bit indices
 }
 
 impl Particle {
@@ -22,18 +34,45 @@ impl Particle {
 	
 }
 
+
+
+#[derive(Clone, Copy)]
+struct NeighborInfo {
+	index: usize,
+	squared_distance: f32
+}
+
+impl NeighborInfo {
+
+	pub fn new(index: usize, squared_distance: f32) -> Self {
+		return Self { index, squared_distance };
+	}
+
+}
+
+
+
 pub(crate) fn set_particle_neighbors(particles: &mut Vec<Particle>) {
 
-	// todo: fix magic number
-	assert!(particles.len() >= 17, "There must be at least 17 particles (the particle itself and 16 neighbors).");
-	assert!(particles.len() <= u16::MAX as usize, "There must be at most u16::MAX particles.");
+	assert!(
+		particles.len() >= NEIGHBOR_ARRAY_SIZE + 1,
+		"There must be at least {} particles (the particle itself and {} neighbors).",
+		NEIGHBOR_ARRAY_SIZE + 1,
+		NEIGHBOR_ARRAY_SIZE
+	);
+
+	assert!(
+		particles.len() <= MAX_PARTICLE_COUNT,
+		"There must be at most {} particles.",
+		MAX_PARTICLE_COUNT
+	);
 	
-	console::log_1(&"start neighbor finding".into());
+	//console::log_1(&"start neighbor finding".into());
 	
 	for i in 0..particles.len() {
 		
 		let particle = &particles[i];
-		let mut neighbors = [NeighborInfo::new(0, f32::INFINITY); 16]; // TODO: fix magic number
+		let mut neighbors = [NeighborInfo::new(0, f32::INFINITY); NEIGHBOR_ARRAY_SIZE];
 		let mut farthest_neighbor_index: usize = 0;
 		
 		for j in 0..particles.len() {
@@ -53,42 +92,28 @@ pub(crate) fn set_particle_neighbors(particles: &mut Vec<Particle>) {
 		
 		let particle = &mut particles[i]; // upgrade to mutable reference
 		
-		for k in 0..particle.neighbors.len() { // todo: fix magic number
+		for k in 0..particle.neighbors.len() {
 			
 			let neighbor_a = &neighbors[k * 2];
 			let neighbor_b = &neighbors[(k * 2) + 1];
 			
-			assert!(neighbor_a.particle_index < u16::MAX as usize, "A particle index must be less than u16::MAX.");
-			assert!(neighbor_b.particle_index < u16::MAX as usize, "A particle index must be less than u16::MAX.");
+			assert!(neighbor_a.index <= MAX_PARTICLE_INDEX, "A particle index must be less than {}.", MAX_PARTICLE_INDEX);
+			assert!(neighbor_b.index <= MAX_PARTICLE_INDEX, "A particle index must be less than {}.", MAX_PARTICLE_INDEX);
 			
-			let packed_indices = ((neighbor_a.particle_index as u32) << 16) | (neighbor_b.particle_index as u32);
+			let packed_indices =
+				((neighbor_a.index as PackedParticleAddress) << PARTICLE_INDEX_PACKING_BIT_SHIFT)
+					| (neighbor_b.index as PackedParticleAddress);
+
 			particle.neighbors[k] = packed_indices;
 		}
 
 		//console::log_1(&format!("{:#?}", particle).into());
 	}
 	
-	console::log_1(&"neighbor finding complete".into());
+	//console::log_1(&"neighbor finding complete".into());
 }
 
-
-
-#[derive(Clone, Copy)]
-struct NeighborInfo {
-	particle_index: usize,
-	squared_distance: f32
-}
-
-impl NeighborInfo {
-
-	pub fn new(particle_index: usize, squared_distance: f32) -> Self {
-		return Self { particle_index, squared_distance };
-	}
-
-}
-
-// TODO: consider switching back to vector so values aren't copied
-fn get_farthest_neighbor_index(neighbors: &[NeighborInfo; 16]) -> usize { // TODO: fix magic number
+fn get_farthest_neighbor_index(neighbors: &[NeighborInfo; NEIGHBOR_ARRAY_SIZE]) -> usize {
 
 	let mut farthest_neighbor_index = 0;
 	let mut farthest_neighbor_distance2 = f32::NEG_INFINITY;
