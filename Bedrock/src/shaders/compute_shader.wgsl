@@ -2,6 +2,7 @@ override SIMULATION_WIDTH: f32 = 10.0; // in meters
 override SIMULATION_HEIGHT: f32 = 10.0; // in meters
 
 const HALF_NEIGHBOR_COUNT: u32 = 8;
+const ONE_OVER_HALF_NEIGHBOR_COUNT: f32 = 0.125; // optimization for "i / HALF_NEIGHBOR_COUNT"
 const BOUNCE_EFFICIENCY: f32 = 0.95;
 const F32_MIN_FINITE_VALUE: f32 = -3.402823466e+38f; // wgsl has no NaN literals
 
@@ -28,44 +29,44 @@ fn t_impact(d_initial: f32, v_initial: f32, acceleration: f32) -> f32 {
 		return select(0.0, F32_MIN_FINITE_VALUE, d_initial < 0);
 	}
 
-    // Not a quadratic.
-    if (acceleration == 0.0) {
+	// Not a quadratic.
+	if (acceleration == 0.0) {
 
-        if (v_initial == 0.0) {
-            return F32_MIN_FINITE_VALUE;
-        }
+		if (v_initial == 0.0) {
+			return F32_MIN_FINITE_VALUE;
+		}
 
-        let t_impact: f32 = -d_initial / v_initial;
-        return select(F32_MIN_FINITE_VALUE, t_impact, t_impact > 0.0);
-    }
+		let t_impact: f32 = -d_initial / v_initial;
+		return select(F32_MIN_FINITE_VALUE, t_impact, t_impact > 0.0);
+	}
 
 	// 2.0 is used here instead of 4.0 because the the kinematic equation is d(t) = d_i + v_i*t + 0.5*a*d^2
 	// Since acceleration and d_initial are non-zero at this point the discriminant is also non-zero.
 	let discriminant: f32 = v_initial * v_initial - 2.0 * acceleration * d_initial;
 
-    // No real roots.
-    if (discriminant < 0.0) {
-        return F32_MIN_FINITE_VALUE;
-    }
+	// No real roots.
+	if (discriminant < 0.0) {
+		return F32_MIN_FINITE_VALUE;
+	}
 
 	let sqrt_discriminant: f32 = sqrt(discriminant);
 
 	// Since the discriminant is non-zero q is also non-zero.
 	let q: f32 = -0.5 * (v_initial + select(-sqrt_discriminant, sqrt_discriminant, v_initial >= 0.0));
 
-    let t_impact_1 = 2.0 * q / acceleration;
-    let t_impact_2 = d_initial / q;
+	let t_impact_1 = 2.0 * q / acceleration;
+	let t_impact_2 = d_initial / q;
 
 	if (t_impact_1 > 0.0 && t_impact_2 > 0.0) {
-	    return min(t_impact_1, t_impact_2);
+		return min(t_impact_1, t_impact_2);
 	}
 
 	if (t_impact_1 > 0.0) {
-	    return t_impact_1;
+		return t_impact_1;
 	}
 
 	if (t_impact_2 > 0.0) {
-	    return t_impact_2;
+		return t_impact_2;
 	}
 
 	return F32_MIN_FINITE_VALUE;
@@ -100,26 +101,66 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 	// Set the initial force on the particle to be the force of gravity if it is not on the floor.
 	var force: vec2<f32> = select(
-        vec2<f32>(0.0, -9.81 * particle.mass),
-        vec2<f32>(0.0, 0.0),
-        particle.position.y == 0.0 && particle.velocity.y == 0.0
-    );
+		vec2<f32>(0.0, -9.81 * particle.mass),
+		vec2<f32>(0.0, 0.0),
+		particle.position.y == 0.0 && particle.velocity.y == 0.0
+	);
+
+	var neighbor_force: vec2<f32> = vec2<f32>(0.0, 0.0);
 
 	// Repulsion force between particles.
-//	for (var i: u32 = 0; i < HALF_NEIGHBOR_COUNT; i = i + 1) {
-//
-//		let neighbor_a_index: u32 = particle.neighbors[i] >> 16u;
-//		let neighbor_b_index: u32 = particle.neighbors[i] & 0x0000FFFFu;
-//
-//		let neighbor_a: Particle = particles_source[neighbor_a_index];
-//		let neighbor_b: Particle = particles_source[neighbor_b_index];
-//
-//		let neighbor_a_force: vec2<f32> = particle.position - neighbor_a.position;
-//		let neighbor_b_force: vec2<f32> = particle.position - neighbor_b.position;
-//
-//		force += 0.001 / neighbor_a_force;
-//		force += 0.001 / neighbor_b_force;
+	for (var i: u32 = 0; i < HALF_NEIGHBOR_COUNT; i = i + 1) {
+
+		let neighbor_a_index: u32 = particle.neighbors[i] >> 16u;
+		let neighbor_b_index: u32 = particle.neighbors[i] & 0x0000FFFFu;
+
+		let neighbor_a: Particle = particles_source[neighbor_a_index];
+		let neighbor_b: Particle = particles_source[neighbor_b_index];
+
+		let neighbor_a_delta = particle.position - neighbor_a.position;
+		let neighbor_b_delta = particle.position - neighbor_b.position;
+
+		let neighbor_a_distance = length(neighbor_a_delta);
+		let neighbor_b_distance = length(neighbor_b_delta);
+
+		let neighbor_a_force_magnitude: f32 = 0.25;
+		let neighbor_b_force_magnitude: f32 = 0.25;
+
+		// This is an explanation of the following select statements.
+		// If the neighbor distance is non-zero, normalize the delta and multiply it by the force magnitude.
+		// If the neighbor distance is zero, invent a vector and multiply it by the force magnitude.
+		// The vector must be non-zero it will create a non-finite force.
+		// It is desirable that the vector has approximately unit magnitude since the equation expects a direction vector.
+		// It is desirable that the vector be unique so that the two overlapping particles don't move in the same direction
+		// and recreate the problem in the next frame. The chosen formula is unique as long as the two particles aren't
+		// in the same place in eachother's neighbor array.
+		// Finally, it is desirable that computing the vector be no slower than computing the default case.
+
+		neighbor_force += select(
+			(neighbor_a_delta / neighbor_a_distance) * neighbor_a_force_magnitude,
+			vec2<f32>(0.0, 0.0),
+			//vec2<f32>(0.5, f32(i) * ONE_OVER_HALF_NEIGHBOR_COUNT) * neighbor_a_force_magnitude,
+			neighbor_a_distance == 0);
+
+		neighbor_force += select(
+            (neighbor_b_delta / neighbor_b_distance) * neighbor_b_force_magnitude,
+            vec2<f32>(0.0, 0.0),
+            //vec2<f32>(-0.5, f32(i) * ONE_OVER_HALF_NEIGHBOR_COUNT) * neighbor_b_force_magnitude,
+            neighbor_b_distance == 0);
+	}
+
+	// TODO: update neighbors
+
+	// This if statement is used for debugging to test the value of neighbor_force.
+	// If this if block is executed all the particles freeze in place.
+//	if (neighbor_force.y >= 0) {
+//		particles_destination[index].position = particle.position;
+//		particles_destination[index].velocity = vec2<f32>(0.0, 0.0);
+//		force = vec2<f32>(0.0, 0.0);
+//		return;
 //	}
+
+	force += neighbor_force; // <-- uncommenting this line makes everything blow up
 
 	let acceleration: vec2<f32> = force / particle.mass;
 
@@ -235,7 +276,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 	particle.velocity = unchecked_velocity;
 
 
-	//// Update particle position //////////////////////////////////////////////////////////////////////////////////////
+	//// Update particle position //////////////////////////////////////////////////////////////////////////////////////W
 
 	particles_destination[index] = particle;
 }
