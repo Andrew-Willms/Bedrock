@@ -20,13 +20,8 @@ use wgpu::{BlendState, BufferAddress, ColorTargetState, ColorWrites, Device, Fra
 
 
 
-// For debug build:
-// wasm-pack build --target web --dev -- --features debug-logging
-// python3 -m http.server 8000
-// http://localhost:8000/
-
-// For release build:
-// wasm-pack build --target web
+// For debug build:     wasm-pack build --target web --dev -- --features debug-logging
+// For release build:   wasm-pack build --target web
 // python3 -m http.server 8000
 // http://localhost:8000/
 

@@ -2,7 +2,7 @@
 pub(crate) const SIMULATION_WIDTH: f32 = 10.0;
 pub(crate) const SIMULATION_HEIGHT: f32 = 8.0;
 pub(crate) const SIMULATION_TIME_STEP: f32 = 1.0 / 60.0;
-pub(crate) const MIN_FRAME_DISPLAY_TIME: f64 = 1.0 / 240.0; // Some frames are skipped at 120 fps, non are at 240 fps.
+pub(crate) const MIN_FRAME_DISPLAY_TIME: f64 = 10000.0 / 1.0; // Some frames are skipped at 120 fps, non are at 240 fps.
 
 pub(crate) const PARTICLE_COUNT: usize = 1000;
 

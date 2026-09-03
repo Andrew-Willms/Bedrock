@@ -24,8 +24,9 @@ pub(crate) fn start_render_loop(state: state::State) {
 		let delta_time = {
 			(timestamp - *previous_timestamp_clone.borrow()) / 1000.0
 		};
-
-		if delta_time > MIN_FRAME_DISPLAY_TIME {
+		
+		// If it's the first frame or MIN_FRAME_DISPLAY_TIME has passed since the last frame.
+		if *previous_timestamp_clone.borrow() == 0.0 || delta_time > MIN_FRAME_DISPLAY_TIME {
 			
 			if let Err(error) = state_clone.borrow_mut().render() {
 				console::error_1(&error);
