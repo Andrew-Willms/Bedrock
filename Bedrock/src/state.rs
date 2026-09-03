@@ -139,12 +139,7 @@ impl State {
 						depth_slice: None,
 						resolve_target: None,
 						ops: Operations {
-							load: LoadOp::Clear(Color {
-								r: 0.0,
-								g: 0.0,
-								b: 0.0,
-								a: 1.0,
-							}),
+							load: LoadOp::Load,
 							store: StoreOp::Store,
 						},
 					})],
@@ -157,7 +152,8 @@ impl State {
 
 			render_neighbor_pass.set_pipeline(&self.neighbor_render_state.pipeline);
 			render_neighbor_pass.set_bind_group(0, self.neighbor_render_state.current_bind_group(), &[]);
-			render_neighbor_pass.draw(0..(self.particle_count * NEIGHBOR_COUNT as u32 * 2), 0..1);
+			//render_neighbor_pass.draw(0..(self.particle_count * NEIGHBOR_COUNT as u32 * 2), 0..1);
+			render_neighbor_pass.draw(0..(1 * NEIGHBOR_COUNT as u32 * 2), 0..1);
 
 			self.neighbor_render_state.swap_particle_buffer_and_bind_group();
 		}

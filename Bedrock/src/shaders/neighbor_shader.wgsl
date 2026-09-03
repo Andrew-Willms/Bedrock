@@ -69,5 +69,5 @@ fn main_neighbor_vertex_shader(@builtin(vertex_index) vertex_index: u32) -> Vert
 
 @fragment
 fn main_neighbor_fragment_shader() -> @location(0) vec4<f32> {
-	return vec4<f32>(0.2, 0.7, 1.0, 1.0);
+	return vec4<f32>(0.2, 0.7, 1.0, 1.0); // Neon aqua
 }
