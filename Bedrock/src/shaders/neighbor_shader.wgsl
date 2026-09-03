@@ -44,8 +44,8 @@ fn main_neighbor_vertex_shader(@builtin(vertex_index) vertex_index: u32) -> Vert
 
 	let neighbor_index: u32 = select(
 		particles[particle_index].neighbors[neighbor_slot >> 1] >> 16u,
-        particles[particle_index].neighbors[neighbor_slot >> 1] & 0x0000FFFFu,
-        neighbor_slot % 2 == 1
+		particles[particle_index].neighbors[neighbor_slot >> 1] & 0x0000FFFFu,
+		neighbor_slot % 2 == 1
 	);
 
 	var position: vec2<f32>;

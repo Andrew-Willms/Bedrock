@@ -195,7 +195,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 		let neighbor_a_force_magnitude: f32 = max(0, (0.5 - neighbor_a_distance) * (0.5 - neighbor_a_distance));
 		let neighbor_b_force_magnitude: f32 = max(0, (0.5 - neighbor_b_distance) * (0.5 - neighbor_b_distance));
 		//let neighbor_a_force_magnitude: f32 = 0.25;
-        //let neighbor_b_force_magnitude: f32 = 0.25;
+		//let neighbor_b_force_magnitude: f32 = 0.25;
 
 		// This is an explanation of the following select statements.
 		// If the neighbor distance is non-zero, normalize the delta and multiply it by the force magnitude.
