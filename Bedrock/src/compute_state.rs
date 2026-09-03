@@ -1,179 +1,173 @@
-use bytemuck::Zeroable;
-use wasm_bindgen::JsValue;
-use wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, Buffer, BufferUsages, Device};
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
-use crate::particle::{Particle, set_particle_neighbors};
-use crate::simulation_parameters::{SimulationParameters, SIMULATION_WIDTH, SIMULATION_HEIGHT, SIMULATION_TIME_STEP};
+use crate::buffers::Buffers;
+use crate::simulation_parameters::{SIMULATION_HEIGHT, SIMULATION_WIDTH};
+use wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, ComputePipeline, ComputePipelineDescriptor, Device, PipelineCompilationOptions, PipelineLayoutDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages};
 
 
 
 pub(crate) struct ComputeState {
-	buffers: [Buffer; 2],
-	bind_groups: [BindGroup; 2],
-	current: usize,
-	pub(crate) simulation_parameter_buffer: Buffer,
+	pub(crate) pipeline: ComputePipeline,
+	bind_group_a_to_b: BindGroup,
+	bind_group_b_to_a: BindGroup,
+	buffer_a_is_source: bool,
 }
 
 
 
 impl ComputeState {
-	
-	pub(crate) fn current_particle_buffer(&self) -> &Buffer {
-		&self.buffers[self.current]
+
+	pub(crate) fn current_particle_buffer<'a>(&self, buffers: &'a Buffers) -> &'a Buffer {
+		return if self.buffer_a_is_source {
+			&buffers.particles_a
+		} else {
+			&buffers.particles_b
+		}
 	}
-	
+
 	pub(crate) fn current_bind_group(&self) -> &BindGroup {
-		&self.bind_groups[self.current]
+		return if self.buffer_a_is_source {
+			&self.bind_group_a_to_b
+		} else {
+			&self.bind_group_b_to_a
+		}
 	}
-	
+
 	pub(crate) fn swap_particle_buffer_and_bind_group(&mut self) {
-		self.current = 1 - self.current;
+		self.buffer_a_is_source = !self.buffer_a_is_source;
 	}
-	
+
+	pub(crate) fn new<'a>(device: &Device, buffers: &Buffers)-> ComputeState {
+
+		let bind_group_layout = initialize_bind_group_layout(&device);
+		let pipeline = initialize_pipeline(device, &bind_group_layout);
+
+		return ComputeState {
+			pipeline,
+			bind_group_a_to_b: device.create_bind_group(
+				&BindGroupDescriptor {
+					label: Some("Particles A to B"),
+					layout: &bind_group_layout,
+					entries: &[
+						BindGroupEntry {
+							binding: 0,
+							resource: buffers.particles_a.as_entire_binding(),
+						},
+						BindGroupEntry {
+							binding: 1,
+							resource: buffers.particles_b.as_entire_binding(),
+						},
+						BindGroupEntry {
+							binding: 2,
+							resource: buffers.parameters.as_entire_binding(),
+						}
+					],
+				},
+			),
+			bind_group_b_to_a: device.create_bind_group(
+				&BindGroupDescriptor {
+					label: Some("Particles B to A"),
+					layout: &bind_group_layout,
+					entries: &[
+						BindGroupEntry {
+							binding: 0,
+							resource: buffers.particles_b.as_entire_binding(),
+						},
+						BindGroupEntry {
+							binding: 1,
+							resource: buffers.particles_a.as_entire_binding(),
+						},
+						BindGroupEntry {
+							binding: 2,
+							resource: buffers.parameters.as_entire_binding(),
+						},
+					],
+				},
+			),
+			buffer_a_is_source: true
+		};
+	}
+
 }
 
-pub(crate) fn initialize_compute_state(
-	device: &Device, particle_count: usize, compute_bind_group_layout: &BindGroupLayout)
-	-> Result<ComputeState, JsValue> {
-	
-	let buffer_a = create_populated_particle_buffers(&device, particle_count);
-	let buffer_b = create_empty_particle_buffers(&device, particle_count);
-	let simulation_parameter_buffer = create_simulation_parameter_buffer(&device);
-	
-	return Ok(
-		ComputeState {
-			bind_groups: [
-				device.create_bind_group(
-					&BindGroupDescriptor {
-						label: Some("Particles A to B"),
-						layout: &compute_bind_group_layout,
-						entries: &[
-							BindGroupEntry {
-								binding: 0,
-								resource: buffer_a.as_entire_binding(),
-							},
-							BindGroupEntry {
-								binding: 1,
-								resource: buffer_b.as_entire_binding(),
-							},
-							BindGroupEntry {
-								binding: 2,
-								resource: simulation_parameter_buffer.as_entire_binding(),
-							}
-						],
+
+
+fn initialize_bind_group_layout(device: &Device) -> BindGroupLayout {
+
+	return device.create_bind_group_layout(
+		&BindGroupLayoutDescriptor {
+			label: Some("Compute Bind Group Layout"),
+			entries: &[
+				BindGroupLayoutEntry {
+					binding: 0,
+					visibility: ShaderStages::COMPUTE,
+					ty: BindingType::Buffer {
+						ty: BufferBindingType::Storage {
+							read_only: true,
+						},
+						has_dynamic_offset: false,
+						min_binding_size: None,
 					},
-				),
-				device.create_bind_group(
-					&BindGroupDescriptor {
-						label: Some("Particles B to A"),
-						layout: &compute_bind_group_layout,
-						entries: &[
-							BindGroupEntry {
-								binding: 0,
-								resource: buffer_b.as_entire_binding(),
-							},
-							BindGroupEntry {
-								binding: 1,
-								resource: buffer_a.as_entire_binding(),
-							},
-							BindGroupEntry {
-								binding: 2,
-								resource: simulation_parameter_buffer.as_entire_binding(),
-							},
-						],
+					count: None,
+				},
+				BindGroupLayoutEntry {
+					binding: 1,
+					visibility: ShaderStages::COMPUTE,
+					ty: BindingType::Buffer {
+						ty: BufferBindingType::Storage {
+							read_only: false,
+						},
+						has_dynamic_offset: false,
+						min_binding_size: None,
 					},
-				)
+					count: None,
+				},
+				BindGroupLayoutEntry {
+					binding: 2,
+					visibility: ShaderStages::COMPUTE,
+					ty: BindingType::Buffer {
+						ty: BufferBindingType::Uniform,
+						has_dynamic_offset: false,
+						min_binding_size: None,
+					},
+					count: None,
+				},
 			],
-			
-			// Buffer must be set after bind_groups because the buffers are moved.
-			buffers: [
-				buffer_a,
-				buffer_b
-			],
-			
-			current: 0,
-			simulation_parameter_buffer,
+		},
+	);
+}
+
+fn initialize_pipeline(device: &Device, bind_group_layout: &BindGroupLayout) -> ComputePipeline {
+
+	let shader_module = device.create_shader_module(
+		ShaderModuleDescriptor {
+			label: Some("Particle Compute Shader"),
+			source: ShaderSource::Wgsl(
+				include_str!("shaders/compute_shader.wgsl").into()
+			)
 		}
 	);
-}
 
-fn create_populated_particle_buffers(device: &Device, particle_count: usize) -> Buffer {
-	
-	let mut particles_a = Vec::with_capacity(particle_count);
-	
-	for i in 0..particle_count {
-		particles_a.push(Particle {
-			mass: 1.0,
-			temperature: 0.0,
-			position: [
-				random(i as u32, 0, 0.0, SIMULATION_WIDTH),
-				random(i as u32, 1, 0.0, SIMULATION_HEIGHT)
-			],
-			velocity: [
-				random(i as u32, 2, -0.5, 0.5),
-				random(i as u32, 3, -0.5, 0.5),
-			],
-			neighbors: [0; 8]
-		});
-	}
-	
-	set_particle_neighbors(&mut particles_a);
-	
-	return device.create_buffer_init(
-		&BufferInitDescriptor {
-			label: Some("Particle Buffer A"),
-			contents: bytemuck::cast_slice(&particles_a),
-			usage: BufferUsages::VERTEX | BufferUsages::STORAGE | BufferUsages::COPY_DST,
+	let pipeline_layout = device.create_pipeline_layout(
+		&PipelineLayoutDescriptor {
+			label: Some("Compute Pipeline Layout"),
+			bind_group_layouts: &[Some(&bind_group_layout)],
+			immediate_size: 0,
 		},
 	);
-}
 
-fn create_empty_particle_buffers(device: &Device, particle_count: usize) -> Buffer {
-	
-	let particles_b = vec![Particle::zeroed(); particle_count];
-	
-	return device.create_buffer_init(
-		&BufferInitDescriptor {
-			label: Some("Particle Buffer B"),
-			contents: bytemuck::cast_slice(&particles_b),
-			usage: BufferUsages::VERTEX | BufferUsages::STORAGE | BufferUsages::COPY_DST,
+	return device.create_compute_pipeline(
+		&ComputePipelineDescriptor {
+			label: Some("Particle Compute Pipeline"),
+			layout: Some(&pipeline_layout),
+			module: &shader_module,
+			entry_point: Some("main"),
+			compilation_options: PipelineCompilationOptions {
+				constants: &[
+					("SIMULATION_WIDTH", SIMULATION_WIDTH as f64),
+					("SIMULATION_HEIGHT", SIMULATION_HEIGHT as f64)
+				],
+				..Default::default()
+			},
+			cache: None,
 		},
 	);
-}
-
-fn create_simulation_parameter_buffer(device: &Device) -> Buffer {
-	
-	let simulation_params = SimulationParameters {
-		delta_time: SIMULATION_TIME_STEP,
-		_padding: [0.0; 3],
-	};
-	
-	return device.create_buffer_init(
-		&BufferInitDescriptor {
-			label: Some("Simulation Parameters"),
-			contents: bytemuck::bytes_of(&simulation_params),
-			usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-		},
-	);
-}
-
-/// A small hashing algorithm with no dependencies that produces 2-element arrays where each element
-/// is an approximately random value between a and b.
-#[inline]
-fn random(seed: u32, sub_seed: u32, min: f32, max: f32) -> f32 {
-	
-	fn hash(mut x: u32) -> u32 {
-		x ^= x >> 16;
-		x = x.wrapping_mul(0x7FEB_352D);
-		x ^= x >> 15;
-		x = x.wrapping_mul(0x846C_A68B);
-		x ^= x >> 16;
-		return x;
-	}
-	
-	const STEP: u32 = 0x9E37_79B9;
-	let range = max - min;
-	let hash_value = hash(seed.wrapping_add(STEP.wrapping_mul(sub_seed)));
-	
-	return min + (hash_value as f32 / u32::MAX as f32) * range;
 }

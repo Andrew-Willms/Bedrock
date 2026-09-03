@@ -3,6 +3,7 @@ use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
 use web_sys::console;
+use crate::simulation_parameters::MIN_FRAME_DISPLAY_TIME;
 use crate::state;
 
 
@@ -23,9 +24,8 @@ pub(crate) fn start_render_loop(state: state::State) {
 		let delta_time = {
 			(timestamp - *previous_timestamp_clone.borrow()) / 1000.0
 		};
-		
-		// Some frames are skipped at 120 fps, non are at 240 fps.
-		if delta_time > 1.0 / 240.0 {
+
+		if delta_time > MIN_FRAME_DISPLAY_TIME {
 			
 			if let Err(error) = state_clone.borrow_mut().render() {
 				console::error_1(&error);

@@ -9,8 +9,8 @@ const PARTICLE_INDEX_PACKING_BIT_SHIFT: usize = 16;
 const MAX_PARTICLE_INDEX: usize = u16::MAX as usize;
 const MAX_PARTICLE_COUNT: usize = MAX_PARTICLE_INDEX + 1;
 
-const NEIGHBOR_ARRAY_SIZE_U32: usize = 8;
-const NEIGHBOR_ARRAY_SIZE: usize = NEIGHBOR_ARRAY_SIZE_U32 * 2;
+pub(crate) const HALF_NEIGHBOR_COUNT: usize = 8;
+pub(crate) const NEIGHBOR_COUNT: usize = HALF_NEIGHBOR_COUNT * 2;
 
 
 
@@ -21,7 +21,7 @@ pub struct Particle {
 	pub(crate) temperature: f32,
 	pub(crate) position: [f32; 2],
 	pub(crate) velocity: [f32; 2],
-	pub(crate) neighbors: [PackedParticleAddress; NEIGHBOR_ARRAY_SIZE_U32] // each element stores 2 16-bit indices
+	pub(crate) neighbors: [PackedParticleAddress; HALF_NEIGHBOR_COUNT] // each element stores 2 16-bit indices
 }
 
 impl Particle {
@@ -55,10 +55,10 @@ impl NeighborInfo {
 pub(crate) fn set_particle_neighbors(particles: &mut Vec<Particle>) {
 
 	assert!(
-		particles.len() >= NEIGHBOR_ARRAY_SIZE + 1,
+		particles.len() >= NEIGHBOR_COUNT + 1,
 		"There must be at least {} particles (the particle itself and {} neighbors).",
-		NEIGHBOR_ARRAY_SIZE + 1,
-		NEIGHBOR_ARRAY_SIZE
+		NEIGHBOR_COUNT + 1,
+		NEIGHBOR_COUNT
 	);
 
 	assert!(
@@ -72,7 +72,7 @@ pub(crate) fn set_particle_neighbors(particles: &mut Vec<Particle>) {
 	for i in 0..particles.len() {
 		
 		let particle = &particles[i];
-		let mut neighbors = [NeighborInfo::new(0, f32::INFINITY); NEIGHBOR_ARRAY_SIZE];
+		let mut neighbors = [NeighborInfo::new(0, f32::INFINITY); NEIGHBOR_COUNT];
 		let mut farthest_neighbor_index: usize = 0;
 		
 		for j in 0..particles.len() {
@@ -113,7 +113,7 @@ pub(crate) fn set_particle_neighbors(particles: &mut Vec<Particle>) {
 	//console::log_1(&"neighbor finding complete".into());
 }
 
-fn get_farthest_neighbor_index(neighbors: &[NeighborInfo; NEIGHBOR_ARRAY_SIZE]) -> usize {
+fn get_farthest_neighbor_index(neighbors: &[NeighborInfo; NEIGHBOR_COUNT]) -> usize {
 
 	let mut farthest_neighbor_index = 0;
 	let mut farthest_neighbor_distance2 = f32::NEG_INFINITY;
