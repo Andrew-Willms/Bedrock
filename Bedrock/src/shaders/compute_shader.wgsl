@@ -103,33 +103,34 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 	//// Update neighbors //////////////////////////////////////////////////////////////////////////////////////////////
 
-	var new_neighbor_distances: array<f32, NEIGHBOR_COUNT> = array<f32, NEIGHBOR_COUNT>(
+	var new_neighbor_distance2s: array<f32, NEIGHBOR_COUNT> = array<f32, NEIGHBOR_COUNT>(
 		0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127,
 		0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127,
 		0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127,
 		0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127
 	);
 
-	var farthest_neighbor_distance2: f32 = 0x1.fffffep+127;
-	var farthest_neighbor_slot: u32 = 0; // An index from 0..<NEIGHBOR_COUNT into the neighbor array.
+	var farthest_remaining_neighbor_distance2: f32 = 0x1.fffffep+127;
 
-	for (var i: u32 = 0; i < NEIGHBOR_COUNT; i++) {
+	// Iterate over every first degree neighbor.
+	for (var neighbor1_slot: u32 = 0; neighbor1_slot < NEIGHBOR_COUNT; neighbor1_slot++) {
 
 		// Particle index of a 1st degree neighbor from last iteration.
 		// ">> 1" is equivalent to "/ 2".
 		let neighbor_particle_index: u32 = select(
-			particles_source[index].neighbors[i >> 1] >> 16u,
-			particles_source[index].neighbors[i >> 1] & 0x0000FFFFu,
-			i % 2 == 1
+			particles_source[index].neighbors[neighbor1_slot >> 1] >> 16u,
+			particles_source[index].neighbors[neighbor1_slot >> 1] & 0x0000FFFFu,
+			neighbor1_slot % 2 == 1
 		);
 
-		for (var j: u32 = 0; j < NEIGHBOR_COUNT; j++) {
+		// Iterate over every second degree neighbor.
+		for (var neighbor2_slot: u32 = 0; neighbor2_slot < NEIGHBOR_COUNT; neighbor2_slot++) {
 
 			// Particle index of a 2nd degree neighbor from last iteration.
 			let neighbor2_particle_index: u32 = select(
-				particles_source[neighbor_particle_index].neighbors[j >> 1] >> 16u,
-				particles_source[neighbor_particle_index].neighbors[j >> 1] & 0x0000FFFFu,
-				j % 2 == 1
+				particles_source[neighbor_particle_index].neighbors[neighbor2_slot >> 1] >> 16u,
+				particles_source[neighbor_particle_index].neighbors[neighbor2_slot >> 1] & 0x0000FFFFu,
+				neighbor2_slot % 2 == 1
 			);
 
 			// Most particles are likely their own 2nd degree neighbor,
@@ -138,13 +139,55 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 				continue;
 			}
 
-			let distance2: f32 = distance(particle.position, particles_source[neighbor2_particle_index].position);
+			// Calculate the distance^2 to the second degree neighbor.
+			// It is faster to calculate the distance^2 than the distance.
+			let neighbor2_delta: vec2<f32> = particle.position - particles_source[neighbor2_particle_index].position;
+			let neighbor2_distance2: f32 = dot(neighbor2_delta, neighbor2_delta);
 
-			if (distance2 >= farthest_neighbor_distance2) {
+			// Early continue if the second degree neighbor is farther than the current farthest neighbor.
+			if (neighbor2_distance2 >= farthest_remaining_neighbor_distance2) {
 				continue;
 			}
 
-			new_neighbor_distances[j] = distance2;
+			// Iterate over the current neighbors of a particle and find the farthest.
+			var neighbor_already_in_list: bool = false;
+			var farthest_neighbor_slot: u32 = 0;
+			var farthest_neighbor_distance2: f32 = -0x1.fffffep+127f;
+			var second_farthest_neighbor_distance2: f32 = -0x1.fffffep+127f;
+			for (var new_neighbor_slot: u32 = 0; new_neighbor_slot < NEIGHBOR_COUNT; new_neighbor_slot++) {
+
+				let new_neighbor_distance2: f32 = new_neighbor_distance2s[new_neighbor_slot];
+
+				// If we have reached the end of the populated new neighbors, break.
+				if (new_neighbor_distance2 == -0x1.fffffep+127f) {
+					second_farthest_neighbor_distance2 = farthest_neighbor_distance2;
+					farthest_neighbor_slot = new_neighbor_slot;
+					break;
+				}
+
+				// If there is a new farthest neighbor distance, update the variables.
+				if (new_neighbor_distance2 > farthest_neighbor_distance2) {
+					farthest_neighbor_slot = new_neighbor_slot;
+					second_farthest_neighbor_distance2 = farthest_neighbor_distance2;
+					farthest_neighbor_distance2 = new_neighbor_distance2;
+					continue;
+				}
+
+				second_farthest_neighbor_distance2 = max(second_farthest_neighbor_distance2, new_neighbor_distance2);
+			}
+
+			// Early return if the particle is already in the neighbors list.
+			if (neighbor_already_in_list) {
+                continue;
+            }
+
+			// Update particle neighbor and farthest remaining distance.
+			new_neighbor_distance2s[farthest_neighbor_slot] = neighbor2_distance2;
+            farthest_remaining_neighbor_distance2 = select(
+                second_farthest_neighbor_distance2,
+                neighbor2_distance2,
+                neighbor2_distance2 > second_farthest_neighbor_distance2
+            );
 
 			let existing_index_pair: u32 = particle.neighbors[farthest_neighbor_slot >> 1];
 			particle.neighbors[farthest_neighbor_slot >> 1] = select(
@@ -153,18 +196,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 				farthest_neighbor_slot % 2 == 1
 			);
 
-			// Find the new farthest neighbor.
-			// To start with, guess that the new neighbor is the farthest neighbor.
-			farthest_neighbor_distance2 = distance2;
-			farthest_neighbor_slot = j;
 
-			for (var k: u32 = 0; k < NEIGHBOR_COUNT; k++) {
-
-				if (new_neighbor_distances[k] > farthest_neighbor_distance2) {
-					farthest_neighbor_distance2 = new_neighbor_distances[k];
-					farthest_neighbor_slot = k;
-				}
-			}
 		}
 	}
 
