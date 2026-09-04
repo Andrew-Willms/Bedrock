@@ -152,8 +152,8 @@ impl State {
 
 			render_neighbor_pass.set_pipeline(&self.neighbor_render_state.pipeline);
 			render_neighbor_pass.set_bind_group(0, self.neighbor_render_state.current_bind_group(), &[]);
-			//render_neighbor_pass.draw(0..(self.particle_count * NEIGHBOR_COUNT as u32 * 2), 0..1);
-			render_neighbor_pass.draw(0..(1 * NEIGHBOR_COUNT as u32 * 2), 0..1);
+			render_neighbor_pass.draw(0..(self.particle_count * NEIGHBOR_COUNT as u32 * 2), 0..1);
+			//render_neighbor_pass.draw(0..(1 * NEIGHBOR_COUNT as u32 * 2), 0..1);
 
 			self.neighbor_render_state.swap_particle_buffer_and_bind_group();
 		}

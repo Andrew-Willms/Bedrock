@@ -5,8 +5,8 @@ const HALF_NEIGHBOR_COUNT: u32 = 8; // Cannot be an override because its used as
 const NEIGHBOR_COUNT: u32 = HALF_NEIGHBOR_COUNT * 2;
 const HALF_NEIGHBOR_COUNT_RECIPROCAL: f32 = 1.0 / f32(HALF_NEIGHBOR_COUNT); // precompute optimization
 
-const BOUNCE_EFFICIENCY: f32 = 0.95;
-const F32_MIN_FINITE_VALUE: f32 = -3.402823466e+38f; // wgsl has no NaN literals
+const BOUNCE_EFFICIENCY: f32 = 1.0;
+const F32_MIN_FINITE_VALUE: f32 = -0x1.fffffep+127f; // wgsl has no NaN literals
 
 
 
@@ -103,21 +103,39 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 	//// Update neighbors //////////////////////////////////////////////////////////////////////////////////////////////
 
-	var new_neighbor_distance2s: array<f32, NEIGHBOR_COUNT> = array<f32, NEIGHBOR_COUNT>(
-		0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127,
-		0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127,
-		0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127,
-		0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127, 0x1.fffffep+127
-	);
+	var new_neighbor_distance2s: array<f32, NEIGHBOR_COUNT>;
+	var farthest_remaining_neighbor_distance2: f32 = F32_MIN_FINITE_VALUE;
 
-	var farthest_remaining_neighbor_distance2: f32 = 0x1.fffffep+127;
+	// Populate new_neighbor_distance2s with the new distances to the old neighbors.
+	// Also determine the farthest neighbor.
+	for (var neighbor_slot: u32 = 0; neighbor_slot < NEIGHBOR_COUNT; neighbor_slot++) {
+
+		// Particle index of a 1st degree neighbor from last iteration.
+		// ">> 1" is equivalent to "/ 2".
+		let old_neighbor_particle_index: u32 = select(
+			particle.neighbors[neighbor_slot >> 1] >> 16u,
+			particle.neighbors[neighbor_slot >> 1] & 0x0000FFFFu,
+			neighbor_slot % 2 == 1
+		);
+
+		// Calculate the distance^2 to the neighbor.
+		// It is faster to calculate the distance^2 than the distance.
+		let neighbor_delta: vec2<f32> = particle.position - particles_source[old_neighbor_particle_index].position;
+		let neighbor_distance2: f32 = dot(neighbor_delta, neighbor_delta);
+
+		new_neighbor_distance2s[neighbor_slot] = neighbor_distance2;
+
+		if (neighbor_distance2 > farthest_remaining_neighbor_distance2) {
+			farthest_remaining_neighbor_distance2 = neighbor_distance2;
+		}
+	}
 
 	// Iterate over every first degree neighbor.
 	for (var neighbor1_slot: u32 = 0; neighbor1_slot < NEIGHBOR_COUNT; neighbor1_slot++) {
 
 		// Particle index of a 1st degree neighbor from last iteration.
 		// ">> 1" is equivalent to "/ 2".
-		let neighbor_particle_index: u32 = select(
+		let neighbor1_particle_index: u32 = select(
 			particles_source[index].neighbors[neighbor1_slot >> 1] >> 16u,
 			particles_source[index].neighbors[neighbor1_slot >> 1] & 0x0000FFFFu,
 			neighbor1_slot % 2 == 1
@@ -128,8 +146,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 			// Particle index of a 2nd degree neighbor from last iteration.
 			let neighbor2_particle_index: u32 = select(
-				particles_source[neighbor_particle_index].neighbors[neighbor2_slot >> 1] >> 16u,
-				particles_source[neighbor_particle_index].neighbors[neighbor2_slot >> 1] & 0x0000FFFFu,
+				particles_source[neighbor1_particle_index].neighbors[neighbor2_slot >> 1] >> 16u,
+				particles_source[neighbor1_particle_index].neighbors[neighbor2_slot >> 1] & 0x0000FFFFu,
 				neighbor2_slot % 2 == 1
 			);
 
@@ -152,18 +170,24 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 			// Iterate over the current neighbors of a particle and find the farthest.
 			var neighbor_already_in_list: bool = false;
 			var farthest_neighbor_slot: u32 = 0;
-			var farthest_neighbor_distance2: f32 = -0x1.fffffep+127f;
-			var second_farthest_neighbor_distance2: f32 = -0x1.fffffep+127f;
+			var farthest_neighbor_distance2: f32 = F32_MIN_FINITE_VALUE;
+			var second_farthest_neighbor_distance2: f32 = F32_MIN_FINITE_VALUE;
 			for (var new_neighbor_slot: u32 = 0; new_neighbor_slot < NEIGHBOR_COUNT; new_neighbor_slot++) {
 
-				let new_neighbor_distance2: f32 = new_neighbor_distance2s[new_neighbor_slot];
+				// Particle index of the potential new neighbor that is currently in particle.neighbors.
+	            let new_neighbor_particle_index: u32 = select(
+	                particle.neighbors[new_neighbor_slot >> 1] >> 16u,
+	                particle.neighbors[new_neighbor_slot >> 1] & 0x0000FFFFu,
+	                new_neighbor_slot % 2 == 1
+	            );
 
-				// If we have reached the end of the populated new neighbors, break.
-				if (new_neighbor_distance2 == -0x1.fffffep+127f) {
-					second_farthest_neighbor_distance2 = farthest_neighbor_distance2;
-					farthest_neighbor_slot = new_neighbor_slot;
+				// If this second degree neighbor is already in the neighbors list, skip it.
+	            if (new_neighbor_particle_index == neighbor2_particle_index) {
+					neighbor_already_in_list = true;
 					break;
-				}
+	            }
+
+				let new_neighbor_distance2: f32 = new_neighbor_distance2s[new_neighbor_slot];
 
 				// If there is a new farthest neighbor distance, update the variables.
 				if (new_neighbor_distance2 > farthest_neighbor_distance2) {
@@ -195,8 +219,6 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 				(existing_index_pair & 0xFFFF0000u) | neighbor2_particle_index,
 				farthest_neighbor_slot % 2 == 1
 			);
-
-
 		}
 	}
 
@@ -224,10 +246,10 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 		let neighbor_a_distance = length(neighbor_a_delta);
 		let neighbor_b_distance = length(neighbor_b_delta);
 
-		let neighbor_a_force_magnitude: f32 = max(0, (0.5 - neighbor_a_distance) * (0.5 - neighbor_a_distance));
-		let neighbor_b_force_magnitude: f32 = max(0, (0.5 - neighbor_b_distance) * (0.5 - neighbor_b_distance));
-		//let neighbor_a_force_magnitude: f32 = 0.25;
-		//let neighbor_b_force_magnitude: f32 = 0.25;
+		//let neighbor_a_force_magnitude: f32 = max(0, (0.5 - neighbor_a_distance) * (0.5 - neighbor_a_distance));
+		//let neighbor_b_force_magnitude: f32 = max(0, (0.5 - neighbor_b_distance) * (0.5 - neighbor_b_distance));
+		let neighbor_a_force_magnitude: f32 = 0.0;
+		let neighbor_b_force_magnitude: f32 = 0.0;
 
 		// This is an explanation of the following select statements.
 		// If the neighbor distance is non-zero, normalize the delta and multiply it by the force magnitude.
